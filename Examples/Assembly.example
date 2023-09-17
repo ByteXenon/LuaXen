@@ -1,0 +1,68 @@
+; Notes:
+;  OP_SELF [A, B, C]    R(A+1) := R(B); R(A) := R(B)[RK(C)]
+;  OP_CALL [A, B, C]    R(A), ... ,R(A+C-2) := R(A)(R(A+1), ... ,R(A+B-1))
+;  OP_GETTABLE [A, B, C]    R(A) := R(B)[RK(C)]
+;  OP_RETURN [A, B]    return R(A), ... ,R(A+B-2)
+
+"print"
+"Time took to execute 1000000 instructions: "
+
+{ ; EXECUTE_1000000_INSTRUCTIONS
+  1
+  1000000
+
+  LOADK    	0 -1
+  LOADK    	1 -2
+  LOADK    	2 -1
+  FORPREP  	0 0
+  FORLOOP  	0 -1
+  RETURN   	0 1
+}
+
+{ ; GET_TIME
+  "os"
+  "clock"
+  
+  GETGLOBAL 0, -1
+  GETTABLE 0, 0, -2
+  CALL 0, 2, 2
+  RETURN 0, 2
+}
+
+{ ; PRINT_SOURCE
+  "debug"
+  "getinfo"
+  1
+  "source"
+  "print"
+
+  GETGLOBAL 0, -1
+  GETTABLE 0, 0, -2
+  LOADK 1, -3
+  CALL 0, 2, 3
+  GETTABLE 1, 0, -4
+  GETGLOBAL 0, -5
+  CALL 0, 4, 1
+}
+
+; Get first time
+CLOSURE 0, 1
+CALL 0, 1, 2
+
+; Execute 1000000 instructions
+CLOSURE 1, 0
+CALL 1, 1, 1
+
+; Get second time
+CLOSURE 1, 1
+CALL 1, 1, 2
+
+; Substract first time from second, print result
+SUB 2, 1, 0
+LOADK 1, -2
+GETGLOBAL 0, -1
+CALL 0, 3, 1
+
+; Print source of the script (unspoofed)
+CLOSURE 0, 2
+CALL 0, 1, 1
