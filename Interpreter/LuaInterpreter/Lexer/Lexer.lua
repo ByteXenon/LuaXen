@@ -28,7 +28,8 @@ function Lexer:new(string)
   LexerInstance.reservedKeywords = {
     "while", "do", "end", "for", "local",
     "repeat", "until", "return", "in",
-    "if", "function", "then"
+    "if", "else", "elseif", "function",
+    "then"
   }
   LexerInstance.constants = {
     "false", "true", "nil"

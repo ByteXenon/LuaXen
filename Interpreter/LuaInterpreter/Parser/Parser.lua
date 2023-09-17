@@ -42,6 +42,10 @@ function Parser:new(tokens)
     return token and (not type or type == token.TYPE) and (not value or value == token.Value)
   end
 
+  function ParserInstance:isClosingParenthesis(token)
+    return token.TYPE == "Character" and token.Value == ")"
+  end
+
   function ParserInstance:expectCurrentToken(tokenType, tokenValue)
     local currentToken = self.currentToken
     if self:compareTokenValueAndType(currentToken, tokenType, tokenValue) then
@@ -97,7 +101,58 @@ function Parser:new(tokens)
   function ParserInstance:createTableNode(values)
     return { TYPE = "Table", Values = values }
   end
+  function ParserInstance:createFunctionNode(arguments, codeBlock)
+    return { TYPE = "Function", Arguments = arguments, CodeBlock = codeBlock }
+  end
   
+  function ParserInstance:consumeExpression(errorOnFail)
+    local expression = LuaMathParser:getExpression(self, self.tokens, self.currentTokenIndex, errorOnFail)
+    return expression
+  end
+
+  function ParserInstance:consumeMultipleExpressions()
+    local expressions = {
+      self:consumeExpression(false)
+    }
+    if #expressions == 0 then return expressions end
+    while self:compareTokenValueAndType(self:peek(), "Character", ",") and self:consume(2) do
+      local expression = self:consumeExpression()
+      insert(expressions, expression)
+    end
+    return expressions
+  end
+
+  function ParserInstance:consumeMultipleIdentifiers(oneOrMore)
+    local identifiers = {}
+    if oneOrMore then
+      self:expectCurrentToken("Identifier")
+    end
+
+    while self:compareTokenValueAndType(self.currentToken, "Identifier") do
+      local identifier = self.currentToken
+      insert(identifiers, identifier)
+      if not self:compareTokenValueAndType(self:consume(), "Character", ",") then
+        break
+      end
+      self:consume()
+    end
+    
+    return identifiers
+  end
+
+  -- function(<args>) <code_block> end
+  function ParserInstance:consumeFunction()
+    self:consume() -- Consume the "function" keyword
+    self:expectCurrentToken("Character", "(")
+    self:consume() -- Consume "("
+    local arguments = self:consumeMultipleIdentifiers()
+    self:expectCurrentToken("Character", ")")
+    self:consume() -- Consume ")"
+    local codeBlock = self:consumeCodeBlock({ "end" })
+    self:expectCurrentToken("Keyword", "end")
+    self:consume()
+    return self:createFunctionNode(arguments, codeBlock)
+  end
   -- <table>.<index>
   function ParserInstance:consumeTableIndex(currentExpression)
     self:consume() -- Consume the "." symbol
@@ -130,7 +185,7 @@ function Parser:new(tokens)
     -- Get arguments for the function
     local arguments = {};
     if not self:isClosingParenthesis(self.currentToken) then
-      arguments = luaParser:consumeMultipleExpressions()
+      arguments = self:consumeMultipleExpressions()
     end
 
     self:consume()
@@ -178,7 +233,7 @@ function Parser:new(tokens)
     return self:createTableNode(elements) 
   end
 
-  function ParserInstance:handleSpecialOperatorCharacters(token, leftExpr)
+  function ParserInstance:handleSpecialOperators(token, leftExpr)
     if token.TYPE == "Character" then
       -- <table>.<index>
       if token.Value == "." then return self:consumeTableIndex(leftExpr)
@@ -188,25 +243,14 @@ function Parser:new(tokens)
       elseif token.Value == "(" then return self:consumeFunctionCall(leftExpr) end
     end
   end
-  function ParserInstance:handleSpecialOperandCharacters(token)
+  function ParserInstance:handleSpecialOperands(token)
     if token.TYPE == "Character" then
        -- { ( \[<expression>\] = <expression> | <identifier> = <expression> | <expression> ) ( , )? }*
       if token.Value == "{" then return self:consumeTable() end
+    elseif token.TYPE == "Keyword" then
+      -- function(<args>) <code_block> end
+      if token.Value == "function" then return self:consumeFunction() end
     end
-  end
-
-  function ParserInstance:consumeExpression()
-    local expression = LuaMathParser:getExpression(self, self.tokens, self.currentTokenIndex)
-    return expression
-  end
-
-  function ParserInstance:consumeMultipleExpressions()
-    local expressions = {}
-    repeat
-      local expression = self:consumeExpression()
-      insert(expressions, expression)
-    until not (self:compareTokenValueAndType(self:peek(), "Character", ",") and self:consume(2))
-    return expressions
   end
 
   function ParserInstance:isValidCodeBlockExpression(expression)

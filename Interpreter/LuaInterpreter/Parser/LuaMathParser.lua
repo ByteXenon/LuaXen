@@ -16,7 +16,8 @@ local stringifyTable = Helpers.StringifyTable
 
 --* LuaMathParser *--
 local LuaMathParser = {}
-function LuaMathParser:getExpression(luaParser, tokens, startIndex)
+function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
+  local errorOnFail = (errorOnFail == nil and true)
   local PatchedMathParser = MathParser:new(tokens, {
     unary = {
       ["-"] = 5,
@@ -66,6 +67,7 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex)
     end
 
     local left = self:parseUnaryOperator()
+    if not left then return end
     while true do
       local token = self:getCurrentToken()
       if not token or self:isClosingParenthesis(token) then break end
@@ -79,7 +81,7 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex)
         left = self:createOperatorNode(token.Value, left, right)
       elseif not precedence then
         self:syncLuaParser()
-        local newLeft = luaParser:handleSpecialOperatorCharacters(token, left)
+        local newLeft = luaParser:handleSpecialOperators(token, left)
         self:syncMathParser()
         if not newLeft then self.unexpectedEnd = true; break end
         left = newLeft
@@ -119,14 +121,18 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex)
       return token
     else
       self:syncLuaParser()
-      local operand = luaParser:handleSpecialOperandCharacters(token)
+      local operand = luaParser:handleSpecialOperands(token)
       self:syncMathParser()
-      if operand then
-        return operand
-      end
+      if operand then return operand end
     end
 
-    return error("Unexpected token: " .. stringifyTable(token))
+    local errorMessage = "Unexpected token: " .. stringifyTable(token) 
+    if not errorOnFail then
+      self.unexpectedEnd = true;
+      self.errorMessage = errorMessage
+      return
+    end
+    return error(errorMessage)
   end;
   function PatchedMathParser:parse()
     local expression = self:parseExpression()

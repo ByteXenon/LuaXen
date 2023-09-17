@@ -9,6 +9,8 @@
 local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Interpreter/LuaInterpreter/InstructionGenerator/ExpressionsEvaluator")
 local Helpers = ModuleManager:loadModule("Helpers/Helpers")
 
+local ScopeState = ModuleManager:loadModule("Interpreter/LuaInterpreter/InstructionGenerator/ScopeState")
+
 --* Export library functions *--
 local stringifyTable = Helpers.StringifyTable
 local find = table.find or Helpers.TableFind
@@ -50,7 +52,7 @@ function ExpressionsEvaluator:new(instructionGenerator)
     local isAConstant;
     local isANumberOrAConstant;
     local function isANumber(left, right) return (left and left.TYPE == "Number") and (not right or isANumber(right)) end
-    local function isAConstant(left, right) return (left and left.TYPE = "Constant") and (not right or isAConstant(right)) end
+    local function isAConstant(left, right) return (left and left.TYPE == "Constant") and (not right or isAConstant(right)) end
     local function isANumberOrAConstant(left, right)
       return (left and (isANumber(left) or isAConstant(left))) and (not right or isANumberOrAConstant(right))
     end
@@ -178,7 +180,7 @@ function ExpressionsEvaluator:new(instructionGenerator)
       local indexConstant = self:evaluateExpression(index, true)
       if indexConstant >= 0 then self:deallocateRegister(indexConstant) end
 
-      local allocatedRegister = self:allocateRegister()
+      local allocatedRegister = self.instructionGenerator:allocateRegister()
       
       -- OP_GETGLOBAL [A, Bx]    R(A) := Gbl[Kst(Bx)]
       self:addInstruction("GETTABLE", allocatedRegister, valueRegister, indexConstant)
@@ -187,8 +189,7 @@ function ExpressionsEvaluator:new(instructionGenerator)
     elseif type == "FunctionCall" then
       local arguments = expression.Arguments
       local functionExpression = expression.Expression
-      local functionExpressionRegister = s-elf:evaluateExpression(functionExpression)
-      Helpers.PrintTable(functionExpression)
+      local functionExpressionRegister = self:evaluateExpression(functionExpression)
       local tempRegisters = {}
       for index, argument in ipairs(arguments) do
         local argumentRegister = self:evaluateExpression(argument)
@@ -203,30 +204,30 @@ function ExpressionsEvaluator:new(instructionGenerator)
       if not isStatementContext then
         -- if the function call doesn't return more than 1 value, then deallocate all
         -- argument registers because they're not needed anymore
-        self:deallocateRegisters(tempRegisters) 
+        self.instructionGenerator:deallocateRegisters(tempRegisters) 
       end
 
       return functionExpressionRegister
     elseif type == "Identifier" then
       local value = expression.Value
       -- Check if this is a variable
-      local localRegister = self.currentScopeState:findLocal(value)
+      local localRegister = self.instructionGenerator.currentScopeState:findLocal(value)
       if localRegister then
         -- Optimize it. (-1 instruction)
         return localRegister
       end
-      local allocatedRegister = self:allocateRegister()
-      local constantIndex = self:addConstant(expression.Value)
+      local allocatedRegister = self.instructionGenerator:allocateRegister()
+      local constantIndex = self.instructionGenerator:addConstant(expression.Value)
       
-      self:addInstruction("GETGLOBAL", allocatedRegister, constantIndex)
+      self.instructionGenerator:addInstruction("GETGLOBAL", allocatedRegister, constantIndex)
       return allocatedRegister
     elseif type == "String" or type == "Number" then
       local value = expression.Value
-      local constantIndex = self:addConstant(value)
+      local constantIndex = self.instructionGenerator:addConstant(value)
       if canReturnConstantIndex then return constantIndex end
 
-      local allocatedRegister = self:allocateRegister()
-      self:addInstruction("LOADK", allocatedRegister, constantIndex)
+      local allocatedRegister = self.instructionGenerator:allocateRegister()
+      self.instructionGenerator:addInstruction("LOADK", allocatedRegister, constantIndex)
       return allocatedRegister
     elseif type == "Constant" then
       local value = expression.Value

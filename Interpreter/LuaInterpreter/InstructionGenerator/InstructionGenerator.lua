@@ -9,6 +9,7 @@
 local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Interpreter/LuaInterpreter/InstructionGenerator/InstructionGenerator")
 local Helpers = ModuleManager:loadModule("Helpers/Helpers")
 
+local ExpressionsEvaluator = ModuleManager:loadModule("Interpreter/LuaInterpreter/InstructionGenerator/ExpressionsEvaluator")
 local ScopeState = ModuleManager:loadModule("Interpreter/LuaInterpreter/InstructionGenerator/ScopeState")
 local LuaState = ModuleManager:loadModule("LuaState/LuaState")
 
@@ -25,6 +26,7 @@ function InstructionGenerator:new(AST, luaState)
   InstructionGeneratorInstance.luaState = luaState or LuaState:new()
   InstructionGeneratorInstance.AST = AST
   InstructionGeneratorInstance.registers = {}
+  InstructionGeneratorInstance.expressionsEvaluator = ExpressionsEvaluator:new(InstructionGeneratorInstance) 
 
   function InstructionGeneratorInstance:getFutureAllocatedRegister()
     for i = 1, 255 do
@@ -94,7 +96,7 @@ function InstructionGenerator:new(AST, luaState)
       local expressions = node.Expressions
 
       for index, expression in ipairs(expressions) do
-        local expressionReturnRegister = self:evaluateExpression(expression)
+        local expressionReturnRegister = self.expressionsEvaluator:evaluateExpression(expression)
         local variableName = variables[index]
         if not variableName then
           self:deallocateRegister(expressionReturnRegister)
@@ -104,8 +106,6 @@ function InstructionGenerator:new(AST, luaState)
           if nextAllocatedRegister - 1 == expressionReturnRegister then
           else
             localRegister = self:allocateRegister()
-            Helpers.PrintTable(expression)
-            print(expressionReturnRegister, nextAllocatedRegister)
             self:addInstruction("MOVE", localRegister, expressionReturnRegister)
           end
 
@@ -117,7 +117,7 @@ function InstructionGenerator:new(AST, luaState)
         end]]
       end
     elseif type == "FunctionCall" then
-      self:evaluateExpression(node)
+      self.expressionsEvaluator:evaluateExpression(node)
     end
   end;
   function InstructionGeneratorInstance:processCodeBlock(codeBlockNode)
@@ -126,7 +126,6 @@ function InstructionGenerator:new(AST, luaState)
     for _, node in ipairs(codeBlockNode) do
       self:processNode(node)
     end
-    Helpers.PrintTable(self.currentScopeState.locals)
     self.currentScopeState = oldScopeState
   end
   function InstructionGeneratorInstance:run()
