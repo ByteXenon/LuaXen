@@ -34,12 +34,25 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex)
   }, startIndex)
 
   function PatchedMathParser:syncLuaParser()
-    luaParser.currentTokenIndex = self.currentTokenIndex - ((self.unexpectedEnd and 1) or 0)
+    luaParser.currentTokenIndex = self.currentTokenIndex -- ((self.unexpectedEnd and 1) or -1)
     luaParser.currentToken = luaParser.tokens[luaParser.currentTokenIndex]
   end
   function PatchedMathParser:syncMathParser()
     self.tokens = luaParser.tokens -- Just in case 
     self.currentTokenIndex = luaParser.currentTokenIndex
+  end
+
+  function PatchedMathParser:createOperatorNode(operatorValue, leftExpr, rightExpr, operand)
+    return { TYPE = "Operator", Value = operatorValue, Left = leftExpr, Right = rightExpr, Operand = operand }
+  end
+  function PatchedMathParser:createFunctionCallNode(expression, arguments)
+    return { TYPE = "FunctionCall", Expression = expression, Arguments = arguments }
+  end
+  function PatchedMathParser:createIndexNode(index, value)
+    return { TYPE = "Index", Index = index, Value = value }
+  end
+  function PatchedMathParser:createTableNode(values)
+    return { TYPE = "Table", Values = values }
   end
 
   function PatchedMathParser:isClosingParenthesis(token)
@@ -66,7 +79,7 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex)
         left = self:createOperatorNode(token.Value, left, right)
       elseif not precedence then
         self:syncLuaParser()
-        local newLeft = self:handleSpecialCharacters(token, left)
+        local newLeft = luaParser:handleSpecialOperatorCharacters(token, left)
         self:syncMathParser()
         if not newLeft then self.unexpectedEnd = true; break end
         left = newLeft
@@ -88,7 +101,7 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex)
         local operand = self:parseUnaryOperator()
         return self:createOperatorNode(token.Value, nil, nil, operand)
       end
-    elseif TYPE == "Character" then
+    elseif TYPE == "Character" and (value == "(" or value == ")") then
       if value == "(" then
         self:consumeToken()
         local expression = self:parseExpression()
@@ -104,6 +117,13 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex)
     elseif TYPE == "String" or TYPE == "Number" or TYPE == "Identifier" or TYPE == "Constant" then
       self:consumeToken()
       return token
+    else
+      self:syncLuaParser()
+      local operand = luaParser:handleSpecialOperandCharacters(token)
+      self:syncMathParser()
+      if operand then
+        return operand
+      end
     end
 
     return error("Unexpected token: " .. stringifyTable(token))
@@ -112,6 +132,7 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex)
     local expression = self:parseExpression()
     self:syncLuaParser()
 
+    luaParser.currentTokenIndex = self.currentTokenIndex - ((self.unexpectedEnd and 1) or 0)
     return expression
   end;
 

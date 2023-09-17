@@ -73,19 +73,6 @@ function Parser:new(tokens)
     local token = self.currentToken
     return token and token.TYPE == "Character" and token.TYPE == "{"
   end;
-  
-  function ParserInstance:handleSpecialCharacters(token, leftExpr)
-    if token.TYPE == "Character" then
-      -- <table>.<index>
-      if token.Value == "." then return self:consumeTableIndex(leftExpr)
-      -- <table>:<method_name>(<args>*)
-      elseif token.Value == ":" then return self:consumeMethodCall(leftExpr)
-      -- <function_name>(<args>*)
-      elseif token.Value == "(" then return self:consumeFunctionCall(leftExpr)
-      --  
-      elseif token.Value == "{" then return self:consumeTable(leftExpr) end
-    end
-  end
 
   function ParserInstance:addSelfToArguments(arguments)
     local newArguments = { { TYPE = "Identifier", Value = "self" } }
@@ -101,8 +88,14 @@ function Parser:new(tokens)
   function ParserInstance:createFunctionCallNode(expression, arguments)
     return { TYPE = "FunctionCall", Expression = expression, Arguments = arguments }
   end
+  function ParserInstance:createNumberNode(value)
+    return { TYPE = "Number", Value = value }
+  end
   function ParserInstance:createIndexNode(index, value)
     return { TYPE = "Index", Index = index, Value = value }
+  end
+  function ParserInstance:createTableNode(values)
+    return { TYPE = "Table", Values = values }
   end
   
   -- <table>.<index>
@@ -144,8 +137,8 @@ function Parser:new(tokens)
     return self:createFunctionCallNode(currentExpression, arguments)
   end
   
-  -- { ( \[<expression>\] = <expression> | <identifier, function> = <expression> | <expression> ) ( , )? }*
-  function ParserInstance:consumeTable(currentExpression)
+  -- { ( \[<expression>\] = <expression> | <identifier> = <expression> | <expression> ) ( , )? }*
+  function ParserInstance:consumeTable()
     self:consume() -- Consume "{"
     
     local elements = {}
@@ -159,27 +152,47 @@ function Parser:new(tokens)
         self:expectNextToken("Character", "=")
         self:consume() -- Consume "="
         local value = self:consumeExpression()
-        elements[key] = value
-      elseif curToken.TYPE == "Identifier" and self:compareTokenValueAndType(self.nextToken, "Character", "=") then
-        local key = curToken.Value
-        self:consume() -- Consume identifier
+        insert(elements, { key, value })
+      elseif curToken.TYPE == "Identifier" then
+        local key =  curToken.Value
+        self:expectNextToken("Character", "=")
         self:consume() -- Consume "="
         local value = self:consumeExpression()
-        elements[key] = value
+        insert(elements, { key, value })
       else
         local value = self:consumeExpression()
-        elements[index] = value
+        insert(elements, { self:createNumberNode(index), value })
         index = index + 1
       end
+      self:consume() -- Consume the last token of the expression
 
       if self:compareTokenValueAndType(self.currentToken, "Character", ",") then
         self:consume()
       else
+        -- Break the loop, it will error if this is not the true end anyway.
         break
       end
     end
 
-    return elements 
+    self:consume() -- Consume "}"
+    return self:createTableNode(elements) 
+  end
+
+  function ParserInstance:handleSpecialOperatorCharacters(token, leftExpr)
+    if token.TYPE == "Character" then
+      -- <table>.<index>
+      if token.Value == "." then return self:consumeTableIndex(leftExpr)
+      -- <table>:<method_name>(<args>*)
+      elseif token.Value == ":" then return self:consumeMethodCall(leftExpr)
+      -- <function_name>(<args>*)
+      elseif token.Value == "(" then return self:consumeFunctionCall(leftExpr) end
+    end
+  end
+  function ParserInstance:handleSpecialOperandCharacters(token)
+    if token.TYPE == "Character" then
+       -- { ( \[<expression>\] = <expression> | <identifier> = <expression> | <expression> ) ( , )? }*
+      if token.Value == "{" then return self:consumeTable() end
+    end
   end
 
   function ParserInstance:consumeExpression()
