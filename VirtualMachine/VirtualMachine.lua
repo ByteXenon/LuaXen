@@ -159,7 +159,7 @@ function VirtualMachine:new(luaState)
     end, ...)
     
     return unpack(returnValue)
-  end;	
+  end;
 
   return VirtualMachineInstance
 end

@@ -18,16 +18,16 @@ local Floor = math.floor
 local OPCodes = {}
 
 OPCodes.OP_ENUM = {
-  "MOVE",		"LOADK",	"LOADBOOL",	"LOADNIL",
-  "GETUPVAL",	"GETGLOBAL","GETTABLE",	"SETGLOBAL",
-  "SETUPVAL",	"SETTABLE",	"NEWTABLE",	"SELF",
-  "ADD",		"SUB",		"MUL",		"DIV",
-  "MOD",		"POW",		"UNM",		"NOT",
-  "LEN",		"CONCAT",	"JMP",		"EQ",
-  "LT",		"LE",		"TEST",		"TESTSET",
-  "CALL",		"TAILCALL",	"RETURN",	"FORLOOP",
-  "FORPREP",	"TFORLOOP",	"SETLIST",	"CLOSE",
-  "CLOSURE",	"VARARG",	"DEBUG"
+  "MOVE",     "LOADK",     "LOADBOOL",  "LOADNIL",
+  "GETUPVAL", "GETGLOBAL", "GETTABLE",  "SETGLOBAL",
+  "SETUPVAL", "SETTABLE",  "NEWTABLE",  "SELF",
+  "ADD",      "SUB",       "MUL",       "DIV",
+  "MOD",      "POW",       "UNM",       "NOT",
+  "LEN",      "CONCAT",    "JMP",       "EQ",
+  "LT",       "LE",        "TEST",      "TESTSET",
+  "CALL",     "TAILCALL",  "RETURN",    "FORLOOP",
+  "FORPREP",  "TFORLOOP",  "SETLIST",   "CLOSE",
+  "CLOSURE",  "VARARG",    "DEBUG"
 }
 
 -- Modes:
@@ -40,16 +40,16 @@ OPCodes.OP_ENUM = {
 
 -- { [<InstructionName>] = { <ParamCount>, <Index>, <ParamMode> } }
 OPCodes.OP_Table = {
-  ["MOVE"]     =  {2, 1, 1}, 	["LOADK"]     =  {2, 2, 2},		["LOADBOOL"] =	{3, 3, 3},	["LOADNIL"]   =  {2, 4, 1},
-  ["GETUPVAL"] =  {2, 5, 1},	["GETGLOBAL"] =  {2, 6, 2},		["GETTABLE"] =	{3, 7, 3},	["SETGLOBAL"] =  {2, 8, 2},
-  ["SETUPVAL"] =  {2, 9, 1},	["SETTABLE"]  =  {3, 10, 3},	["NEWTABLE"] =	{3, 11, 3},	["SELF"]      =  {3, 12, 3},
-  ["ADD"]      =  {3, 13, 3},	["SUB"]       =  {3, 14, 3},	["MUL"]      =	{3, 15, 3},	["DIV"]       =  {3, 16, 3},
-  ["MOD"]      =  {3, 17, 3},	["POW"]       =  {3, 18, 3},	["UNM"]      =	{2, 19, 1},	["NOT"]       =  {2, 20, 1},
-  ["LEN"]      =  {2, 21, 1},	["CONCAT"]    =  {3, 22, 3},	["JMP"]      =	{1, 23, 4},	["EQ"]        =  {3, 24, 3},
-  ["LT"]       =  {3, 25, 3},	["LE"]        =  {3, 26, 3},	["TEST"]     =	{2, 27, 1},	["TESTSET"]   =  {3, 28, 3},
-  ["CALL"]     =  {3, 29, 3},	["TAILCALL"]  =  {3, 30, 3},	["RETURN"]   =	{2, 31, 1},	["FORLOOP"]   =  {2, 32, 5},
-  ["FORPREP"]  =  {2, 33, 5},	["TFORLOOP"]  =  {2, 34, 1},	["SETLIST"]  =	{3, 35, 3},	["CLOSE"]     =  {1, 36, 0},
-  ["CLOSURE"]  =  {2, 37, 5},	["VARARG"]    =  {2, 38, 1},	["DEBUG"]    =	{1, 39, 0}
+  ["MOVE"]     =  {2, 1, 1},   ["LOADK"]     =  {2, 2, 2},   ["LOADBOOL"] =  {3, 3, 3},  ["LOADNIL"]   =  {2, 4, 1},
+  ["GETUPVAL"] =  {2, 5, 1},   ["GETGLOBAL"] =  {2, 6, 2},   ["GETTABLE"] =  {3, 7, 3},  ["SETGLOBAL"] =  {2, 8, 2},
+  ["SETUPVAL"] =  {2, 9, 1},   ["SETTABLE"]  =  {3, 10, 3},  ["NEWTABLE"] =  {3, 11, 3}, ["SELF"]      =  {3, 12, 3},
+  ["ADD"]      =  {3, 13, 3},  ["SUB"]       =  {3, 14, 3},  ["MUL"]      =  {3, 15, 3}, ["DIV"]       =  {3, 16, 3},
+  ["MOD"]      =  {3, 17, 3},  ["POW"]       =  {3, 18, 3},  ["UNM"]      =  {2, 19, 1}, ["NOT"]       =  {2, 20, 1},
+  ["LEN"]      =  {2, 21, 1},  ["CONCAT"]    =  {3, 22, 3},  ["JMP"]      =  {1, 23, 4}, ["EQ"]        =  {3, 24, 3},
+  ["LT"]       =  {3, 25, 3},  ["LE"]        =  {3, 26, 3},  ["TEST"]     =  {2, 27, 1}, ["TESTSET"]   =  {3, 28, 3},
+  ["CALL"]     =  {3, 29, 3},  ["TAILCALL"]  =  {3, 30, 3},  ["RETURN"]   =  {2, 31, 1}, ["FORLOOP"]   =  {2, 32, 5},
+  ["FORPREP"]  =  {2, 33, 5},  ["TFORLOOP"]  =  {2, 34, 1},  ["SETLIST"]  =  {3, 35, 3}, ["CLOSE"]     =  {1, 36, 0},
+  ["CLOSURE"]  =  {2, 37, 5},  ["VARARG"]    =  {2, 38, 1},  ["DEBUG"]    =  {1, 39, 0}
 }
 
 -- OPCODE := (Instruction & ~((~0) << 6))

@@ -11,12 +11,12 @@ _0: { ; EXECUTE_1000000_INSTRUCTIONS
   1
   1000000
 
-  LOADK    	0 -1
-  LOADK    	1 -2
-  LOADK    	2 -1
-  FORPREP  	0 0
-  FORLOOP  	0 -1
-  RETURN   	0 1
+  LOADK      0 -1
+  LOADK      1 -2
+  LOADK      2 -1
+  FORPREP    0 0
+  FORLOOP    0 -1
+  RETURN     0 1
 }
 
 _1: { ; GET_TIME
