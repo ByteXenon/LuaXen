@@ -29,7 +29,7 @@ function Lexer:new(string)
     "while", "do", "end", "for", "local",
     "repeat", "until", "return", "in",
     "if", "else", "elseif", "function",
-    "then"
+    "then", "break"
   }
   LexerInstance.constants = {
     "false", "true", "nil"

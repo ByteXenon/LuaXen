@@ -136,9 +136,10 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
   end;
   function PatchedMathParser:parse()
     local expression = self:parseExpression()
-    self:syncLuaParser()
 
     luaParser.currentTokenIndex = self.currentTokenIndex - ((self.unexpectedEnd and 1) or 0)
+    luaParser.currentToken = luaParser.tokens[luaParser.currentTokenIndex]
+    
     return expression
   end;
 

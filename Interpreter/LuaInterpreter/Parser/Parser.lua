@@ -61,6 +61,15 @@ function Parser:new(tokens)
     return self:expectCurrentToken(tokenType, tokenValue)
   end
 
+  function ParserInstance:expectCurrentTokenAndConsume(tokenType, tokenValue)
+    self:expectCurrentToken(tokenType, tokenValue)
+    return self:consume()
+  end
+  function ParserInstance:expectNextTokenAndConsume(tokenType, tokenValue)
+    self:expectNextToken(tokenType, tokenValue)
+    return self:consume()
+  end
+
   function ParserInstance:handleTokenWithFunction(tokenCases)
     local currentToken = self.currentToken
     for _, case in ipairs(tokenCases) do
@@ -110,12 +119,13 @@ function Parser:new(tokens)
     return expression
   end
 
-  function ParserInstance:consumeMultipleExpressions()
+  function ParserInstance:consumeMultipleExpressions(maxAmount)
+    local maxAmount = maxAmount or 9e9
     local expressions = {
       self:consumeExpression(false)
     }
     if #expressions == 0 then return expressions end
-    while self:compareTokenValueAndType(self:peek(), "Character", ",") and self:consume(2) do
+    while #expressions < maxAmount and self:compareTokenValueAndType(self:peek(), "Character", ",") and self:consume(2) do
       local expression = self:consumeExpression()
       insert(expressions, expression)
     end
@@ -268,7 +278,7 @@ function Parser:new(tokens)
 
       local keywordFunction = self["_" .. value]
       if not keywordFunction then
-        error("Unsupported keyword on Lua Parser side [You're not supposed to see this error]")
+        error("Unsupported keyword on Lua Parser side [You're not supposed to see this error]: " .. value)
       end
       returnValue = keywordFunction(self)
     elseif type == "Identifier" and self:compareTokenValueAndType(self:peek(), "Character", ",") or self:compareTokenValueAndType(self:peek(), "Character", "=") then
