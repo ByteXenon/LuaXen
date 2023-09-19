@@ -9,7 +9,6 @@
 local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Interpreter/LuaInterpreter/MathParser/Evaluator/Evaluator")
 
 local Helpers = ModuleManager:loadModule("Helpers/Helpers")
-local ParserBuilder = ModuleManager:loadModule("Interpreter/ParserBuilder/ParserBuilder")
 
 --* Export library functions *--
 local Class = Helpers.NewClass

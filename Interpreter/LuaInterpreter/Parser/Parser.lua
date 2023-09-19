@@ -174,7 +174,13 @@ function Parser:new(tokens)
     end
     return self:createIndexNode(currentToken, currentExpression)
   end
-
+  -- <table>[<expression>]
+  function ParserInstance:consumeBracketTableIndex(currentExpression)
+    self:consume() -- Consume the "[" symbol
+    local expression = self:consumeExpression()
+    self:expectNextTokenAndConsume("Character", "]")
+    return self:createIndexNode(expression, currentExpression)
+  end
   -- <table>:<method_name>(<args>*)
   function ParserInstance:consumeMethodCall(currentExpression)
     self:consume() -- Consume the ":" symbol
@@ -187,7 +193,6 @@ function Parser:new(tokens)
 
     return self:createFunctionCallNode(functionCall.Expression, self:addSelfToArguments(functionCall.Arguments))
   end
-
   -- <function_name>(<args>*)
   function ParserInstance:consumeFunctionCall(currentExpression)
     self:consume() -- Consume the "(" symbol
@@ -201,7 +206,6 @@ function Parser:new(tokens)
     self:consume()
     return self:createFunctionCallNode(currentExpression, arguments)
   end
-  
   -- { ( \[<expression>\] = <expression> | <identifier> = <expression> | <expression> ) ( , )? }*
   function ParserInstance:consumeTable()
     self:consume() -- Consume "{"
@@ -218,9 +222,8 @@ function Parser:new(tokens)
         self:consume() -- Consume "="
         local value = self:consumeExpression()
         insert(elements, { key, value })
-      elseif curToken.TYPE == "Identifier" then
+      elseif curToken.TYPE == "Identifier" and self:compareTokenValueAndType(self:peek(), "Character", "=") then
         local key =  curToken.Value
-        self:expectNextToken("Character", "=")
         self:consume() -- Consume "="
         local value = self:consumeExpression()
         insert(elements, { key, value })
@@ -247,10 +250,13 @@ function Parser:new(tokens)
     if token.TYPE == "Character" then
       -- <table>.<index>
       if token.Value == "." then return self:consumeTableIndex(leftExpr)
+      -- <table>[<expression>]
+      elseif token.Value == "[" then return self:consumeBracketTableIndex(leftExpr) 
       -- <table>:<method_name>(<args>*)
       elseif token.Value == ":" then return self:consumeMethodCall(leftExpr)
       -- <function_name>(<args>*)
-      elseif token.Value == "(" then return self:consumeFunctionCall(leftExpr) end
+      elseif token.Value == "(" then return self:consumeFunctionCall(leftExpr)
+      end
     end
   end
   function ParserInstance:handleSpecialOperands(token)

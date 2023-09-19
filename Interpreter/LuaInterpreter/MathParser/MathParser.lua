@@ -34,7 +34,6 @@ function MathParser:new(operatorPrecedences, operatorFunctions)
   function MathParserInstance:parse(tokens)
     local parser = Parser:new(tokens, self.operatorPrecedences)
     local AST = parser:parse()
-    Helpers.PrintTable(AST)
     return AST
   end;
   function MathParserInstance:evaluate(AST)

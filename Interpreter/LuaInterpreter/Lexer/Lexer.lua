@@ -18,6 +18,26 @@ local char = string.char
 local find = table.find or Helpers.TableFind
 local rep = string.rep
 
+local function makeTrie(tb)
+  local trieTb = {}
+  local longestElement = 0
+
+  for _, op in ipairs(tb) do
+    if #op > longestElement then
+      longestElement = #op
+    end
+
+    local node = trieTb
+    for i = 1, #op do
+      local c = op:sub(i, i)
+      node[c] = node[c] or {}
+      node = node[c]
+    end
+    node.value = op
+  end
+  return trieTb, longestElement
+end
+
 --* Lexer *--
 local Lexer = {}
 function Lexer:new(string)
@@ -26,36 +46,25 @@ function Lexer:new(string)
   LexerInstance.curCharPos = 1
   LexerInstance.curChar = LexerInstance.charStream[1]
   LexerInstance.reservedKeywords = {
-    "while", "do", "end", "for", "local",
-    "repeat", "until", "return", "in",
-    "if", "else", "elseif", "function",
-    "then", "break"
+    "while", "do", "end", "for", 
+    "local", "repeat", "until", "return", 
+    "in", "if", "else", "elseif", 
+    "function", "then", "break", "continue"
   }
   LexerInstance.constants = {
-    "false", "true", "nil"
+    "false", "true", "nil", "..."
   }
   LexerInstance.operators = {
-    "^", "*", "/", "%", "+", "-", "<", ">", "<=", ">=", "==", "~=",
-    -- "and" and "or" are reserved keywords too,
-    -- but it would be hard if we would treat them like keywords,
-    -- so instead we treat them as operators.
-    "and", "or"
+    "^", "*", "/", "%", 
+    "+", "-", "<", ">", 
+    "#",
+    
+    "<=", ">=", "==", "~=",
+    "and", "or", "not", ".."
   }
-  LexerInstance.operatorTrie = {}
-  LexerInstance.longestOperator = 0
-  for _, op in ipairs(LexerInstance.operators) do
-    if #op > LexerInstance.longestOperator then
-      LexerInstance.longestOperator = #op
-    end
 
-    local node = LexerInstance.operatorTrie
-    for i = 1, #op do
-      local c = op:sub(i, i)
-      node[c] = node[c] or {}
-      node = node[c]
-    end
-    node.operator = op
-  end
+  LexerInstance.constantTrie, LexerInstance.longestConstant = makeTrie(LexerInstance.constants)
+  LexerInstance.operatorTrie, LexerInstance.longestOperator = makeTrie(LexerInstance.operators)
 
   function LexerInstance:peek(n)
     return self.charStream[self.curCharPos + (n or 1)] or "\0"
@@ -154,11 +163,23 @@ function Lexer:new(string)
     for i = 0, self.longestOperator - 1 do
         local character = self:peek(i)
         node = node[character]
-        if not node then break end  -- No matching operator
-        if node.operator then operator = node.operator end  -- Found an operator
+        if not node then break end
+        if node.value then operator = node.value end
     end
     if operator then self:consume(#operator - 1) end
     return operator
+  end
+  function LexerInstance:consumeConstant()
+    local node = self.constantTrie
+    local constant;
+    for i = 0, self.longestConstant - 1 do
+        local character = self:peek(i)
+        node = node[character]
+        if not node then break end
+        if node.value then constant = node.value end
+    end
+    if constant then self:consume(#constant - 1) end
+    return constant
   end
 
   function LexerInstance:consumeSimpleString()
@@ -228,34 +249,29 @@ function Lexer:new(string)
       return self:newToken("Number", tonumber(newNumber))
     elseif self:isIdentifier() then
       local newIdentifier = self:consumeIdentifier()
-      if find(self.operators, newIdentifier) then
-        return self:newToken("Operator", newIdentifier)
-      elseif find(self.reservedKeywords, newIdentifier) then
-        return self:newToken("Keyword", newIdentifier)
-      elseif find(self.constants, newIdentifier) then
+      if find(self.constants, newIdentifier) then
         local constantValue;
         if newIdentifier == "nil" then
         else
           constantValue = newIdentifier == "true"
         end
         return self:newToken("Constant", constantValue)
+      elseif find(self.operators, newIdentifier) then
+        return self:newToken("Operator", newIdentifier)
+      elseif find(self.reservedKeywords, newIdentifier) then
+        return self:newToken("Keyword", newIdentifier)
       end
       return self:newToken("Identifier", newIdentifier)
     elseif self:isString() then
       local newString = self:consumeString()
       return self:newToken("String", newString)
     end
-    --elseif curChar == "(" or curChar == ")" then
-    --  return self:newToken("Parenthesis", curChar)
-    --elseif curChar == "[" or curChar == "]" then
-    --  return self:newToken("Bracket", curChar)
-    --end
 
-    -- Check for operators
+    -- Check if this is a constant or an operator
+    local constant = self:consumeConstant()
+    if constant then return self:newToken("Constant", constant) end
     local operator = self:consumeOperator()
-    if operator then
-        return self:newToken("Operator", operator)
-    end
+    if operator then return self:newToken("Operator", operator) end
 
     return self:newToken("Character", curChar)
   end

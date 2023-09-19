@@ -1,12 +1,12 @@
 --[[
-  Name: ExpressionsEvaluator.lua
+  Name: ExpressionEvaluator.lua
   Author: ByteXenon [Luna Gilbert]
   Date: 2023-09-XX
   All Rights Reserved.
 --]]
 
 --* Dependencies *--
-local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Interpreter/LuaInterpreter/InstructionGenerator/ExpressionsEvaluator")
+local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Interpreter/LuaInterpreter/InstructionGenerator/ExpressionEvaluator")
 local Helpers = ModuleManager:loadModule("Helpers/Helpers")
 
 local ScopeState = ModuleManager:loadModule("Interpreter/LuaInterpreter/InstructionGenerator/ScopeState")
@@ -16,11 +16,11 @@ local stringifyTable = Helpers.StringifyTable
 local find = table.find or Helpers.TableFind
 local insert = table.insert
 
---* ExpressionsEvaluator *--
-local ExpressionsEvaluator = {}
-function ExpressionsEvaluator:new(instructionGenerator)
-  local ExpressionsEvaluatorInstance = {}
-  ExpressionsEvaluatorInstance.instructionGenerator = instructionGenerator
+--* ExpressionEvaluator *--
+local ExpressionEvaluator = {}
+function ExpressionEvaluator:new(instructionGenerator)
+  local ExpressionEvaluatorInstance = {}
+  ExpressionEvaluatorInstance.tempInstructions = {}
 
   local function addASTNumber(number) return { TYPE = "Number", Value = number } end
   local function addASTString(str) return { TYPE = "String", Value = str } end
@@ -32,22 +32,22 @@ function ExpressionsEvaluator:new(instructionGenerator)
     return { TYPE = "Operator", Value = value, Left = left, Right = right, Operand = operand }
   end
 
-  -- Those functions are intended to be private,
-  -- but for testing purposes let's make them public
-  function ExpressionsEvaluatorInstance:addASTNumber(...) return addASTNumber(...) end
-  function ExpressionsEvaluatorInstance:addASTString(...) return addASTString(...) end
-  function ExpressionsEvaluatorInstance:addASTOperator(...) return addASTOperator(...) end
-  function ExpressionsEvaluatorInstance:addASTConstant(...) return addASTConstant(...) end
-  function ExpressionsEvaluatorInstance:addASTFunctionCall(...) return addASTFunctionCall(...) end
-
-  function ExpressionsEvaluatorInstance:addInstruction(opName, a, b, c)
-    return self.instructionGenerator:addInstruction(opName, a, b, c)
+  local function addInstruction(self, opName, a, b, c)
+    insert(self.tempInstructions, { opName, a, b, c })
+    return #self.tempInstructions
   end
-  function ExpressionsEvaluatorInstance:changeInstruction(instructionIndex, opName, a, b, c)
-    return self.instructionGenerator:changeInstruction(instructionIndex, opName, a, b, c)
+  local function changeInstruction(self, instructionIndex, opName, a, b, c)
+    local oldInstruction = self.tempInstructions[instructionIndex]
+    
+    self.tempInstructions[instructionIndex] = {
+      (opName == false and oldInstruction[1]) or opName,
+      (a == false and oldInstruction[2]) or a,
+      (b == false and oldInstruction[3]) or b,
+      (c == false and oldInstruction[4]) or c 
+    }
   end
-
-  function ExpressionsEvaluatorInstance:compileTimeEvaluateExpression(expression)
+  
+  function ExpressionEvaluatorInstance:compileTimeEvaluateExpression(expression)
     local isANumber;
     local isAConstant;
     local isANumberOrAConstant;
@@ -56,6 +56,7 @@ function ExpressionsEvaluator:new(instructionGenerator)
     local function isANumberOrAConstant(left, right)
       return (left and (isANumber(left) or isAConstant(left))) and (not right or isANumberOrAConstant(right))
     end
+
 
     local type = expression.TYPE
     if type == "Operator" then
@@ -101,8 +102,6 @@ function ExpressionsEvaluator:new(instructionGenerator)
       elseif value == "%" then return addASTNumber(evaluatedLeft.Value % evaluatedRight.Value)
       end
     elseif type == "FunctionCall" then
-      -- We can't optimize a function call as it is,
-      -- but we can optimize its arguments and expression
       local arguments = expression.Arguments
       local functionExpression = expression.Expression
       for index, argument in ipairs(arguments) do
@@ -114,7 +113,8 @@ function ExpressionsEvaluator:new(instructionGenerator)
 
     return expression
   end
-  function ExpressionsEvaluatorInstance:evaluateExpression(expression, canReturnConstantIndex, isStatementContext)
+
+  function ExpressionEvaluatorInstance:evaluateExpressionNode(expression, canReturnConstantIndex, isStatementContext)
     local expression = self:compileTimeEvaluateExpression(expression);
 
     local type = expression.TYPE
@@ -137,17 +137,17 @@ function ExpressionsEvaluator:new(instructionGenerator)
         local operandRegister = self:evaluateExpression(operand, true)
         local allocatedRegister = self:allocateRegister()
 
-        self:addInstruction(unaryOperators[value], allocatedRegister, operandRegister)
+        addInstruction(self, unaryOperators[value], allocatedRegister, operandRegister)
         return allocatedRegister
       elseif value == "and" or value == "or" then
         local leftRegister = self:evaluateExpression(left)
         
         -- OP_TEST [A, C]    if not (R(A) <=> C) then pc++
-        self:addInstruction("TEST", leftRegister, (value == "or" and 1) or 0)
-        local jumpInstructionIndex = self:addInstruction("JMP", 1) -- Placeholder for jump distance
+        addInstruction(self, "TEST", leftRegister, (value == "or" and 1) or 0)
+        local jumpInstructionIndex = addInstruction(self, "JMP", 1) -- Placeholder for jump distance
         local rightRegister = self:evaluateExpression(right)
         
-        self:changeInstruction(jumpInstructionIndex, false, #self.luaState.instructions - jumpInstructionIndex)
+        changeInstruction(self, jumpInstructionIndex, false, #self.luaState.instructions - jumpInstructionIndex)
         return rightRegister
       elseif value == "==" or value == "~=" then
         local leftRegister = self:evaluateExpression(left, true)
@@ -156,12 +156,12 @@ function ExpressionsEvaluator:new(instructionGenerator)
         local allocatedRegister = self:allocateRegister()
         
         -- OP_EQ [A, B, C]    if ((RK(B) == RK(C)) ~= A) then pc++ 
-        self:addInstruction("EQ", (value == "~=" and 0) or 1, leftRegister, rightRegister)
-        self:addInstruction("JMP", 1)
+        addInstruction(self, "EQ", (value == "~=" and 0) or 1, leftRegister, rightRegister)
+        addInstruction(self, "JMP", 1)
         
         -- OP_LOADBOOL [A, B, C]    R(A) := (Bool)B; if (C) pc++
-        self:addInstruction("LOADBOOL", allocatedRegister, 0, 1)
-        self:addInstruction("LOADBOOL", allocatedRegister, 1, 0)
+        addInstruction(self, "LOADBOOL", allocatedRegister, 0, 1)
+        addInstruction(self, "LOADBOOL", allocatedRegister, 1, 0)
         return allocatedRegister
       end
 
@@ -171,7 +171,7 @@ function ExpressionsEvaluator:new(instructionGenerator)
       
       local opName = arithmeticOperators[value]
 
-      self:addInstruction(opName, allocatedRegister, leftRegister, rightRegister)
+      addInstruction(self, opName, allocatedRegister, leftRegister, rightRegister)
       return allocatedRegister
     elseif type == "Index" then
       local index = expression.Index
@@ -180,10 +180,10 @@ function ExpressionsEvaluator:new(instructionGenerator)
       local indexConstant = self:evaluateExpression(index, true)
       if indexConstant >= 0 then self:deallocateRegister(indexConstant) end
 
-      local allocatedRegister = self.instructionGenerator:allocateRegister()
+      local allocatedRegister = self:allocateRegister()
       
       -- OP_GETGLOBAL [A, Bx]    R(A) := Gbl[Kst(Bx)]
-      self:addInstruction("GETTABLE", allocatedRegister, valueRegister, indexConstant)
+      addInstruction(self, "GETTABLE", allocatedRegister, valueRegister, indexConstant)
       
       return allocatedRegister
     elseif type == "FunctionCall" then
@@ -195,56 +195,62 @@ function ExpressionsEvaluator:new(instructionGenerator)
         local argumentRegister = self:evaluateExpression(argument)
         insert(tempRegisters, argumentRegister)
         if argumentRegister ~= functionExpressionRegister + index then
-          self:addInstruction("MOVE", functionExpressionRegister + index, argumentRegister)
+          addInstruction(self, "MOVE", functionExpressionRegister + index, argumentRegister)
         end
       end
 
       -- OP_CALL [A, B, C]    R(A), ... ,R(A+C-2) := R(A)(R(A+1), ... ,R(A+B-1))
-      self:addInstruction("CALL", functionExpressionRegister, #arguments + 1, (isStatementContext and 0) or 2)
+      addInstruction(self, "CALL", functionExpressionRegister, #arguments + 1, (isStatementContext and 0) or 2)
       if not isStatementContext then
         -- if the function call doesn't return more than 1 value, then deallocate all
         -- argument registers because they're not needed anymore
-        self.instructionGenerator:deallocateRegisters(tempRegisters) 
+        self:deallocateRegisters(tempRegisters) 
       end
 
       return functionExpressionRegister
     elseif type == "Identifier" then
       local value = expression.Value
       -- Check if this is a variable
-      local localRegister = self.instructionGenerator.currentScopeState:findLocal(value)
+      local localRegister = self.currentScopeState:findLocal(value)
       if localRegister then
         -- Optimize it. (-1 instruction)
         return localRegister
       end
-      local allocatedRegister = self.instructionGenerator:allocateRegister()
-      local constantIndex = self.instructionGenerator:addConstant(expression.Value)
+      local allocatedRegister = self:allocateRegister()
+      local constantIndex = self:addConstant(expression.Value)
       
-      self.instructionGenerator:addInstruction("GETGLOBAL", allocatedRegister, constantIndex)
+      addInstruction(self, "GETGLOBAL", allocatedRegister, constantIndex)
       return allocatedRegister
     elseif type == "String" or type == "Number" then
       local value = expression.Value
-      local constantIndex = self.instructionGenerator:addConstant(value)
+      local constantIndex = self:addConstant(value)
       if canReturnConstantIndex then return constantIndex end
 
-      local allocatedRegister = self.instructionGenerator:allocateRegister()
-      self.instructionGenerator:addInstruction("LOADK", allocatedRegister, constantIndex)
+      local allocatedRegister = self:allocateRegister()
+      addInstruction(self, "LOADK", allocatedRegister, constantIndex)
       return allocatedRegister
     elseif type == "Constant" then
       local value = expression.Value
       local allocatedRegister = self:allocateRegister()
-      if value == "nil" then self:addInstruction("LOADNIL",  allocatedRegister, allocatedRegister)
+      if value == "nil" then addInstruction(self, "LOADNIL",  allocatedRegister, allocatedRegister)
       else
-        self:addInstruction("LOADBOOL", allocatedRegister, value == "true" and 1 or 0, 0)
+        addInstruction(self, "LOADBOOL", allocatedRegister, value == "true" and 1 or 0, 0)
       end
       return allocatedRegister
-    end
+    end 
   end
 
-  function ExpressionsEvaluatorInstance:isolatedEvaluateExpression(expression, canReturnConstantIndex, isStatementContext)
-  
+  function ExpressionEvaluatorInstance:evaluateExpression(expression, noInsert)
+    self.tempInstructions = {}
+    local returnRegister = self:evaluateExpressionNode(expression)
+    local tempInstructions = self.tempInstructions
+    self.tempInstructions = {}
+
+    if not noInsert then self:addInstructions(tempInstructions) end
+    return returnRegister, tempInstructions
   end
 
-  return ExpressionsEvaluatorInstance
+  return ExpressionEvaluatorInstance
 end
 
-return ExpressionsEvaluator
+return ExpressionEvaluator

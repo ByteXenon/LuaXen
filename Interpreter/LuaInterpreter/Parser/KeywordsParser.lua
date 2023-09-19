@@ -22,6 +22,7 @@ local keywords = {}
 -- "return( <expression>(, <expression>)*)?"
 function keywords._return(self)
   self:consume() -- Consume "return"
+  
   return {
     TYPE = "Return",
     Values = self:consumeMultipleExpressions()
@@ -40,6 +41,7 @@ function keywords._local(self)
 
   self:expectCurrentToken("Character", "=")
   self:consume()
+  
   return {
     Expressions = self:consumeMultipleExpressions(),
     Variables = variables,
@@ -85,10 +87,34 @@ function keywords._repeat(self)
   local codeBlock = self:consumeCodeBlock({"until"})
   self:expectCurrentTokenAndConsume("Keyword", "until")
   local statement = self:consumeExpression()
+  
   return {
     TYPE = "Until",
     CodeBlock = codeBlock,
     Statement = statement
+  }
+end
+-- "do <code_block> end"
+function keywords._do(self)
+  self:consume() -- Consume "do"
+  local codeBlock = self:consumeCodeBlock({"end"})
+
+  return {
+    TYPE = "Do",
+    CodeBlock = codeBlock
+  }
+end
+-- "while <expression> do <code_block> end"
+function keywords._while(self)
+  self:consume() -- Consume "while"
+  local expression = self:consumeExpression()
+  self:expectNextTokenAndConsume("Keyword", "do")
+  local codeBlock = self:consumeCodeBlock({"end"})
+  
+  return {
+    TYPE = "WhileLoop",
+    Expression = expression,
+    CodeBlock = codeBlock
   }
 end
 -- "break"
@@ -97,12 +123,20 @@ function keywords._break(self)
     TYPE = "Break"
   }
 end
+-- "continue"
+function keywords._continue(self)
+  return {
+    TYPE = "Continue"
+  }
+end
+
 -- "for <identifier>(, <identifier>)* in <expression> do <codeblock> end"
 local function consumeGenericLoop(self, iteratorVariables)
   self:expectCurrentTokenAndConsume("Keyword", "in")
   local expression = self:consumeExpression()
   self:expectNextTokenAndConsume("Keyword", "do")
   local codeBlock = self:consumeCodeBlock({"end"})
+  
   return {
     TYPE = "GenericFor",
     IteratorVariables = iteratorVariables,

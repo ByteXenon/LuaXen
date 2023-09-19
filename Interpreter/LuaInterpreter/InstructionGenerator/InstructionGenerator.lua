@@ -9,10 +9,9 @@
 local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Interpreter/LuaInterpreter/InstructionGenerator/InstructionGenerator")
 local Helpers = ModuleManager:loadModule("Helpers/Helpers")
 
-local ExpressionsEvaluator = ModuleManager:loadModule("Interpreter/LuaInterpreter/InstructionGenerator/ExpressionsEvaluator")
+local ExpressionEvaluator = ModuleManager:loadModule("Interpreter/LuaInterpreter/InstructionGenerator/ExpressionEvaluator")
 local ScopeState = ModuleManager:loadModule("Interpreter/LuaInterpreter/InstructionGenerator/ScopeState")
 local LuaState = ModuleManager:loadModule("LuaState/LuaState")
-
 
 --* Export library functions *--
 local stringifyTable = Helpers.StringifyTable
@@ -26,7 +25,9 @@ function InstructionGenerator:new(AST, luaState)
   InstructionGeneratorInstance.luaState = luaState or LuaState:new()
   InstructionGeneratorInstance.AST = AST
   InstructionGeneratorInstance.registers = {}
-  InstructionGeneratorInstance.expressionsEvaluator = ExpressionsEvaluator:new(InstructionGeneratorInstance) 
+  for i,v in pairs(ExpressionEvaluator:new()) do
+    InstructionGeneratorInstance[i] = v
+  end
 
   function InstructionGeneratorInstance:getFutureAllocatedRegister()
     for i = 1, 255 do
@@ -79,14 +80,21 @@ function InstructionGenerator:new(AST, luaState)
     insert(self.luaState.instructions, { opName, a, b, c })
     return #self.luaState.instructions
   end
+  function InstructionGeneratorInstance:addInstructions(instructionTb)
+    local instructions = self.luaState.instructions
+    for _, instruction in ipairs(instructionTb) do
+      insert(instructions, instruction)
+    end
+  end
   function InstructionGeneratorInstance:changeInstruction(instructionIndex, opName, a, b, c)
     local oldInstruction = self.luaState.instructions[instructionIndex]
-    local opName = (opName == false and oldInstruction[1]) or opName
-    local a = (a == false and oldInstruction[2]) or a
-    local b = (b == false and oldInstruction[3]) or b
-    local c = (c == false and oldInstruction[4]) or c
-
-    self.luaState.instructions[instructionIndex] = { opName, a, b, c }
+    
+    self.luaState.instructions[instructionIndex] = {
+      (opName == false and oldInstruction[1]) or opName,
+      (a == false and oldInstruction[2]) or a,
+      (b == false and oldInstruction[3]) or b,
+      (c == false and oldInstruction[4]) or c 
+    }
   end
 
   function InstructionGeneratorInstance:processNode(node)
@@ -96,7 +104,7 @@ function InstructionGenerator:new(AST, luaState)
       local expressions = node.Expressions
 
       for index, expression in ipairs(expressions) do
-        local expressionReturnRegister = self.expressionsEvaluator:evaluateExpression(expression)
+        local expressionReturnRegister = self:evaluateExpression(expression)
         local variableName = variables[index]
         if not variableName then
           self:deallocateRegister(expressionReturnRegister)
@@ -109,15 +117,20 @@ function InstructionGenerator:new(AST, luaState)
             self:addInstruction("MOVE", localRegister, expressionReturnRegister)
           end
 
-          self.currentScopeState:setLocal(localRegister, variableName)
+          self.currentScopeState:setLocal(localRegister, variableName.Value)
         end
-
-        --[[if variableRegisters[index] then
-          self:addInstruction("MOVE", variableRegisters[index], expressionReturnRegister)
-        end]]
       end
     elseif type == "FunctionCall" then
-      self.expressionsEvaluator:evaluateExpression(node)
+      self:evaluateExpression(node)
+    elseif type == "IfStatement" then
+      local typeOfCheck = node.Statement.TYPE
+      if typeOfCheck == "Operator" then
+        typeOfCheck = node.Statement.Value
+      end
+      
+      local returnRegister, statementInstructions = self:evaluateExpression(node.Statement)
+      self:addInstruction("TEST", returnRegister, 0, 0)
+      self:addInstruction("JMP", (#node.Elseifs == 0 and 0))
     end
   end;
   function InstructionGeneratorInstance:processCodeBlock(codeBlockNode)

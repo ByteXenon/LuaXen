@@ -19,16 +19,12 @@ local insert = table.insert
 -- * Lexer (Tokenizer) * --
 local Lexer = {}
 function Lexer:new(expression, operators, charPos)
-  local LexerInstance = {}
+  local LexerInstance = ParserBuilder:clone()
 
   LexerInstance.charStream = (type(expression) == "string" and StringToTable(expression)) or expression
   LexerInstance.curChar = LexerInstance.charStream[charPos or 1]
   LexerInstance.curCharPos = charPos or 1
   LexerInstance.operators = operators or {"+", "-", "*", "/", "^"}
-
-  for i,v in pairs(ParserBuilder.__raw__) do
-    LexerInstance[i] = v
-  end
 
   function LexerInstance:consumeNumber()
     return self:consumeDigit()

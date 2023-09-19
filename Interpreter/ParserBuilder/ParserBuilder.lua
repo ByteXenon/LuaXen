@@ -19,6 +19,14 @@ local ParserBuilder = {}
 function ParserBuilder:clone()
   local ParserBuilderInstance = {};
 
+  function ParserBuilderInstance:peek(n)
+    return self.charStream[self.curCharPos + (n or 1)]
+  end
+  function ParserBuilderInstance:consume(n)
+    self.curCharPos = self.curCharPos + (n or 1)
+    self.curChar = self.charStream[self.curCharPos]
+    return self.curChar
+  end
   function ParserBuilderInstance:peekRange(n, m)
     local a = {}
     for i = n, m do
@@ -53,7 +61,7 @@ function ParserBuilder:clone()
 
     return concat(result, "")
   end;
-  readWhile = function(self, condition, statement)
+  function ParserBuilderInstance:readWhile(condition, statement)
     local result = {}
     local condition = (condition or function()
       return true
@@ -72,12 +80,12 @@ function ParserBuilder:clone()
 
     return concat(result, "")
   end;
-  readWhileChar = function(self, targetChar)
+  function ParserBuilderInstance:readWhileChar(targetChar)
     return self:readWhile(function()
       return self.curChar == targetChar
     end)
   end;
-  readWhileNotString = function(self, targetString)
+  function ParserBuilderInstance:readWhileNotString(targetString)
     local stringTb = StringToTable(targetString)
     local stringLen = #targetString
     local matchedIndex = 1;
@@ -98,14 +106,14 @@ function ParserBuilder:clone()
   end;
 
 
-  consumeIdentifier = function(self)
+  function ParserBuilderInstance:consumeIdentifier()
     local identifier = {self.curChar}
     while self:peek() and self:peek():match("[%d%a_]") do
       insert(identifier, self:consume())
     end
     return concat(identifier)
   end;
-  consumeDigit = function(self)
+  function ParserBuilderInstance:consumeDigit()
 
     local digit = {}
     while self.curChar do
@@ -120,28 +128,37 @@ function ParserBuilder:clone()
     return concat(digit)
   end;
 
-  consumeWhitespace = function(self)
+  function ParserBuilderInstance:consumeWhitespace()
     local t = self:readWhile(function()
       return self:isWhitespace(self.curChar)
     end)
     self:consume(-1)
     return t
   end;
-  consumeOptionalWhitespace = function(self)
+  function ParserBuilderInstance:consumeOptionalWhitespace()
     if self:isWhitespace() then self:consumeWhitespace() self:consume() end
   end;
-  isWhitespace = function(self, char)
+  function ParserBuilderInstance:isWhitespace(char)
     local char = char or self.curChar
     return char:match("[%s]")
   end;
-  isIdentifier = function(self, char)
+  function ParserBuilderInstance:isIdentifier(char)
     local char = char or self.curChar
     return char:match("[%a_]")
   end;
-  isDigit = function(self, char)
+  function ParserBuilderInstance:isDigit(char)
     local char = char or self.curChar
     return char:match("%d")
   end;
-}
+
+  return ParserBuilderInstance
+end
+function ParserBuilder:new(charStream, charPos)
+  local newInstance = self:clone()
+  newInstance.charStream = (type(charStream) == "string" and StringToTable(charStream)) or charStream
+  newInstance.curCharPos = charPos or 1
+  newInstance.curChar = newInstance.charStream[charPos or 1]
+  return newInstance
+end
 
 return ParserBuilder
