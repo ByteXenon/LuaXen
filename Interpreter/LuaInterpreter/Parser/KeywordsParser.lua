@@ -6,31 +6,39 @@
 --]]
 
 --* Dependencies *--
-local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Interpreter/LuaInterpreter/Parser/Parser")
+local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Interpreter/LuaInterpreter/Parser/KeywordsParser")
 local Helpers = ModuleManager:loadModule("Helpers/Helpers")
 
 --* Export library functions *--
 local insert = table.insert
-local byte = string.byte
-local concat = table.concat
-local char = string.char
-local rep = string.rep
 local find = table.find or Helpers.TableFind
 
-local keywords = {}
+--* Keywords *--
+local Keywords = {}
 
--- "return( <expression>(, <expression>)*)?"
-function keywords._return(self)
-  self:consume() -- Consume "return"
-  
-  return {
-    TYPE = "Return",
-    Values = self:consumeMultipleExpressions()
-  }
-end
--- "local <identifier>(, <identifier>)* (= <expression>(, <expression>)*)?"
-function keywords._local(self)
+-- "local <identifier>(, <identifier>)* (= <expression>(, <expression>)*)?" |
+-- "local function <identifier>(<args>) <code_block> end"
+function Keywords:_local()
   self:consume() -- Consume "local"
+  if self:compareTokenValueAndType(self.currentToken, "Keyword", "function") then
+    self:consume() -- Consume "function"
+    local functionName = self:expectCurrentToken("Identifier").Value
+    self:consume()
+    self:expectCurrentTokenAndConsume("Character", "(")
+    local arguments = {}
+    for index, argument in ipairs(self:consumeMultipleIdentifiers()) do
+      arguments[index] = argument.Value
+    end
+    self:expectCurrentTokenAndConsume("Character", ")")
+    local codeBlock = self:consumeCodeBlock({"end"})
+    return {
+      TYPE = "LocalFunction",
+      Name = functionName,
+      Arguments = arguments,
+      CodeBlock = codeBlock
+    }
+  end
+
   local variables = self:consumeMultipleIdentifiers(true)
   if not self:compareTokenValueAndType(self.currentToken, "Character", "=") then
     return {
@@ -49,7 +57,7 @@ function keywords._local(self)
   }
 end
 -- "if <expression> then <codeblock>( elseif <expression> then <codeblock>)*( else <codeblock>)? end"
-function keywords._if(self)
+function Keywords:_if()
   self:consume() -- Consume "if"
   
   local newIfStatement = {
@@ -82,7 +90,7 @@ function keywords._if(self)
   return newIfStatement
 end
 -- "repeat <codeblock> until <expression>"
-function keywords._repeat(self)
+function Keywords:_repeat()
   self:consume() -- Consume "repeat"
   local codeBlock = self:consumeCodeBlock({"until"})
   self:expectCurrentTokenAndConsume("Keyword", "until")
@@ -95,7 +103,7 @@ function keywords._repeat(self)
   }
 end
 -- "do <code_block> end"
-function keywords._do(self)
+function Keywords:_do()
   self:consume() -- Consume "do"
   local codeBlock = self:consumeCodeBlock({"end"})
 
@@ -105,7 +113,7 @@ function keywords._do(self)
   }
 end
 -- "while <expression> do <code_block> end"
-function keywords._while(self)
+function Keywords:_while()
   self:consume() -- Consume "while"
   local expression = self:consumeExpression()
   self:expectNextTokenAndConsume("Keyword", "do")
@@ -117,20 +125,65 @@ function keywords._while(self)
     CodeBlock = codeBlock
   }
 end
+-- "return( <expression>(, <expression>)*)?"
+function Keywords:_return()
+  self:consume() -- Consume "return"
+  
+  return {
+    TYPE = "Return",
+    Values = self:consumeMultipleExpressions()
+  }
+end
 -- "break"
-function keywords._break(self)
+function Keywords:_break()
   return {
     TYPE = "Break"
   }
 end
 -- "continue"
-function keywords._continue(self)
+function Keywords:_continue()
   return {
     TYPE = "Continue"
   }
 end
+-- "function <identifier>[. <identifier>]*[: <identifier>]?(<args>) <code_block> end"
+function Keywords:_function(isLocal)
+  self:consume() -- Consume "function"
+  local fields = {
+    self:expectCurrentToken("Identifier").Value
+  }
+  self:consume() -- Consume the first required field
+  local arguments = {};
 
--- "for <identifier>(, <identifier>)* in <expression> do <codeblock> end"
+  local currentToken = self.currentToken
+  while self:compareTokenValueAndType(currentToken, "Character", ".") or (not isLocal and self:compareTokenValueAndType(currentToken, "Character", ":")) do
+    local previousToken = currentToken
+    self:consume() -- Consume ":" or "."
+    local identifier = self:expectCurrentToken("Identifier")
+    insert(fields, identifier.Value)
+    currentToken = self:consume()
+    if self:compareTokenValueAndType(previousToken, "Character", ":") then
+      insert(arguments, "self")
+      break
+    end
+  end
+
+  self:expectCurrentTokenAndConsume("Character", "(")
+  for _, identifier in pairs(self:consumeMultipleIdentifiers()) do
+    insert(arguments, identifier.Value)
+  end
+  self:expectCurrentTokenAndConsume("Character", ")")
+  local codeBlock = self:consumeCodeBlock({"end"})
+  
+  return {
+    TYPE = "Function",
+    Fields = fields,
+    Arguments = arguments,
+    CodeBlock = codeBlock
+  }
+end
+
+-- "in <expression> do <codeblock> end"
 local function consumeGenericLoop(self, iteratorVariables)
   self:expectCurrentTokenAndConsume("Keyword", "in")
   local expression = self:consumeExpression()
@@ -144,7 +197,7 @@ local function consumeGenericLoop(self, iteratorVariables)
     CodeBlock = codeBlock
   }
 end
--- "for <identifier> = <expression>, <expression>(, <expression>)? do <codeblock> end"
+-- "= <expression>, <expression>(, <expression>)? do <codeblock> end"
 local function consumeNumericLoop(self, iteratorVariables)
   self:expectCurrentTokenAndConsume("Character", "=")
   local expressions = self:consumeMultipleExpressions(3)
@@ -160,7 +213,7 @@ local function consumeNumericLoop(self, iteratorVariables)
 end
 -- "for <identifier>(, <identifier>)* in <expression> do <codeblock> end" |
 -- "for <identifier> = <expression>, <expression>(, <expression>)? do <codeblock> end"
-function keywords._for(self)
+function Keywords:_for()
   self:consume() -- Consume "for"
   local iteratorVariables = {
     self:expectCurrentToken("Identifier")
@@ -174,4 +227,4 @@ function keywords._for(self)
   return consumeNumericLoop(self, iteratorVariables)
 end
 
-return keywords
+return Keywords

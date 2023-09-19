@@ -18,18 +18,7 @@ local stringifyTable = Helpers.StringifyTable
 local LuaMathParser = {}
 function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
   local errorOnFail = (errorOnFail == nil and true)
-  --[[
 
-    ^
-    not, - (unary), #
-    *, /
-    +, -
-    ..
-    <, >, <=, >=, ~=, ==
-    and
-    or
-
-  ]]
   local PatchedMathParser = MathParser:new(tokens, {
     unary = {
       ["-"] = 8, ["#"] = 8, ["not"] = 8

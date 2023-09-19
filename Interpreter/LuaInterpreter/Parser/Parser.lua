@@ -101,6 +101,9 @@ function Parser:new(tokens)
   function ParserInstance:createFunctionCallNode(expression, arguments)
     return { TYPE = "FunctionCall", Expression = expression, Arguments = arguments }
   end
+  function ParserInstance:createIdentifierNode(value)
+    return { TYPE = "Identifier", Value = value }
+  end
   function ParserInstance:createNumberNode(value)
     return { TYPE = "Number", Value = value }
   end
@@ -110,8 +113,8 @@ function Parser:new(tokens)
   function ParserInstance:createTableNode(values)
     return { TYPE = "Table", Values = values }
   end
-  function ParserInstance:createFunctionNode(arguments, codeBlock)
-    return { TYPE = "Function", Arguments = arguments, CodeBlock = codeBlock }
+  function ParserInstance:createFunctionNode(arguments, codeBlock, fields)
+    return { TYPE = "Function", Arguments = arguments, CodeBlock = codeBlock, Fields = fields }
   end
   
   function ParserInstance:consumeExpression(errorOnFail)
@@ -224,6 +227,7 @@ function Parser:new(tokens)
         insert(elements, { key, value })
       elseif curToken.TYPE == "Identifier" and self:compareTokenValueAndType(self:peek(), "Character", "=") then
         local key =  curToken.Value
+        self:consume() -- Consume key
         self:consume() -- Consume "="
         local value = self:consumeExpression()
         insert(elements, { key, value })

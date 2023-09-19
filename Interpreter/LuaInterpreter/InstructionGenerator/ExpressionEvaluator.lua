@@ -64,11 +64,23 @@ function ExpressionEvaluator:new(instructionGenerator)
       local operand = expression.Operand
       if operand then
         local evaluatedOperand = self:compileTimeEvaluateExpression(operand)
-        if not isANumber(evaluatedOperand) then return addASTOperator(value, nil, nil, evaluatedOperand) end
-        if value == "-" then return addASTNumber(-evaluatedOperand.Value) end
+        if value == "#" and (evaluatedOperand.TYPE == "String" or evaluatedOperand.TYPE == "Table") then
+          if evaluatedOperand.TYPE == "Table" then
+            local elementCount = 0
+            for _ in pairs(evaluatedOperand.Values) do
+              elementCount = elementCount + 1
+            end
+
+            return addASTNumber(elementCount)
+          elseif evaluatedOperand.TYPE == "String" then
+            return addASTNumber(#evaluatedOperand.Value)
+          end
+        elseif value == "-" and isANumber(evaluatedOperand) then
+          return addASTNumber(-evaluatedOperand.Value)
+        end
 
         -- Unsuported unary operator
-        return expression
+        return addASTOperator(value, nil, nil, evaluatedOperand)
       end
 
       local left = expression.Left
@@ -125,12 +137,13 @@ function ExpressionEvaluator:new(instructionGenerator)
       local operand = expression.Operand
       
       local unaryOperators = {
-        ["-"] = "UNM"
+        ["-"] = "UNM", ["#"] = "LEN"
       }
       local arithmeticOperators = {
         ["+"] = "ADD", ["-"] = "SUB",
         ["^"] = "POW", ["*"] = "MUL",
-        ["/"] = "DIV", ["%"] = "MOD"
+        ["/"] = "DIV", ["%"] = "MOD",
+        [".."] = "CONCAT"
       }
 
       if operand then
