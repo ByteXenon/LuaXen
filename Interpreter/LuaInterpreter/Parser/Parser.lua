@@ -9,13 +9,15 @@
 local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Interpreter/LuaInterpreter/Parser/Parser")
 local Helpers = ModuleManager:loadModule("Helpers/Helpers")
 
-local KeywordsParser = ModuleManager:loadModule("Interpreter/LuaInterpreter/Parser/KeywordsParser")
+local StatementParser = ModuleManager:loadModule("Interpreter/LuaInterpreter/Parser/StatementParser")
 local LuaMathParser = ModuleManager:loadModule("Interpreter/LuaInterpreter/Parser/LuaMathParser")
 
 --* Export library functions *--
 local stringifyTable = Helpers.StringifyTable
 local find = table.find or Helpers.TableFind
 local insert = table.insert
+
+local STOP_PARSING_VALUE = -1
 
 --* Parser *--
 local Parser = {}
@@ -25,7 +27,7 @@ function Parser:new(tokens)
   ParserInstance.currentToken = tokens[1]
   ParserInstance.currentTokenIndex = 1
 
-  for index, func in pairs(KeywordsParser) do
+  for index, func in pairs(StatementParser) do
     ParserInstance[index] = func
   end
 
@@ -41,6 +43,14 @@ function Parser:new(tokens)
   function ParserInstance:compareTokenValueAndType(token, type, value)
     return token and (not type or type == token.TYPE) and (not value or value == token.Value)
   end
+
+  function ParserInstance:tokenIsOneOf(token, tokenPairs)
+    local token = token or self.currentToken
+    for _, pair in ipairs(tokenPairs) do
+      if self:compareTokenValueAndType(token, pair[1], pair[2]) then return true end
+    end
+    return false
+  end 
 
   function ParserInstance:isClosingParenthesis(token)
     return token.TYPE == "Character" and token.Value == ")"
@@ -68,19 +78,7 @@ function Parser:new(tokens)
   function ParserInstance:expectNextTokenAndConsume(tokenType, tokenValue)
     self:expectNextToken(tokenType, tokenValue)
     return self:consume()
-  end
-
-  function ParserInstance:handleTokenWithFunction(tokenCases)
-    local currentToken = self.currentToken
-    for _, case in ipairs(tokenCases) do
-      local tokenCase = case.token
-      if self:compareTokenValueAndType(currentToken, tokenCase.TYPE, tokenCase.Value) then
-        return case.func(self)
-      end
-    end
-
-    return error("Unexpected token: " .. currentToken.Value)
-  end
+  end 
   
   function ParserInstance:isTable()
     local token = self.currentToken
@@ -110,11 +108,22 @@ function Parser:new(tokens)
   function ParserInstance:createIndexNode(index, value)
     return { TYPE = "Index", Index = index, Value = value }
   end
-  function ParserInstance:createTableNode(values)
-    return { TYPE = "Table", Values = values }
+  function ParserInstance:createTableNode(elements)
+    return { TYPE = "Table", Elements = elements }
+  end
+  function ParserInstance:createTableElementNode(key, value)
+    return { TYPE = "TableElement", Key = key, Value = value }
   end
   function ParserInstance:createFunctionNode(arguments, codeBlock, fields)
     return { TYPE = "Function", Arguments = arguments, CodeBlock = codeBlock, Fields = fields }
+  end
+
+  function ParserInstance:identifiersToValues(identifiers)
+    local values = {}
+    for _, identifierNode in ipairs(identifiers) do
+      insert(values, identifierNode.Value)
+    end
+    return values
   end
   
   function ParserInstance:consumeExpression(errorOnFail)
@@ -123,12 +132,12 @@ function Parser:new(tokens)
   end
 
   function ParserInstance:consumeMultipleExpressions(maxAmount)
-    local maxAmount = maxAmount or 9e9
-    local expressions = {
-      self:consumeExpression(false)
-    }
+    local expressions = { self:consumeExpression(false) }
+    
     if #expressions == 0 then return expressions end
-    while #expressions < maxAmount and self:compareTokenValueAndType(self:peek(), "Character", ",") and self:consume(2) do
+    while self:compareTokenValueAndType(self:peek(), "Character", ",") do
+      if maxAmount and #expressions >= maxAmount then break end
+      self:consume(2)
       local expression = self:consumeExpression()
       insert(expressions, expression)
     end
@@ -137,9 +146,7 @@ function Parser:new(tokens)
 
   function ParserInstance:consumeMultipleIdentifiers(oneOrMore)
     local identifiers = {}
-    if oneOrMore then
-      self:expectCurrentToken("Identifier")
-    end
+    if oneOrMore then self:expectCurrentToken("Identifier") end
 
     while self:compareTokenValueAndType(self.currentToken, "Identifier") do
       local identifier = self.currentToken
@@ -224,20 +231,20 @@ function Parser:new(tokens)
         self:expectNextToken("Character", "=")
         self:consume() -- Consume "="
         local value = self:consumeExpression()
-        insert(elements, { key, value })
+        insert(elements, self:createTableElementNode(key, value))
       elseif curToken.TYPE == "Identifier" and self:compareTokenValueAndType(self:peek(), "Character", "=") then
         local key =  curToken.Value
         self:consume() -- Consume key
         self:consume() -- Consume "="
         local value = self:consumeExpression()
-        insert(elements, { key, value })
+        insert(elements, self:createTableElementNode(key, value))
       else
         local value = self:consumeExpression()
-        insert(elements, { self:createNumberNode(index), value })
+        insert(elements, self:createTableElementNode(self:createNumberNode(index), value))
         index = index + 1
       end
-      self:consume() -- Consume the last token of the expression
 
+      self:consume() -- Consume the last token of the expression
       if self:compareTokenValueAndType(self.currentToken, "Character", ",") then
         self:consume()
       else
@@ -280,41 +287,31 @@ function Parser:new(tokens)
   function ParserInstance:getNextAST(stopKeywords)
     local currentToken = self.currentToken
     local value, type = currentToken.Value, currentToken.TYPE
+    
     local returnValue;
     if type == "Keyword" then
       if stopKeywords and find(stopKeywords, value) then
-        return -1
+        return STOP_PARSING_VALUE
       end
 
       local keywordFunction = self["_" .. value]
       if not keywordFunction then
-        error("Unsupported keyword on Lua Parser side [You're not supposed to see this error]: " .. value)
+        error("Unsupported keyword on Lua Parser side: " .. value)
       end
       returnValue = keywordFunction(self)
-    elseif type == "Identifier" and self:compareTokenValueAndType(self:peek(), "Character", ",") or self:compareTokenValueAndType(self:peek(), "Character", "=") then
-      local variables = {}
-      repeat
-        insert(variables, self:expectCurrentToken("Identifier"))
-        self:consume()
-      until not (self:compareTokenValueAndType(self.currentToken, "Character", ",") and self:consume())
-      self:expectCurrentToken("Character", "=")
-      self:consume()
-      returnValue = {
-        Expressions = self:consumeMultipleExpressions(),
-        Variables = variables,
-        TYPE = "VariableAssignment"
-      }
+    elseif type == "Identifier" and self:tokenIsOneOf(self:peek(), {{"Character", ","}, {"Character", "="}}) then
+      return self:__VariableAssignment()
     elseif type == "EOF" then
-      return -1
+      return STOP_PARSING_VALUE
     else
       local codeBlockExpression = self:consumeExpression()
-      
+
       if not self:isValidCodeBlockExpression(codeBlockExpression) then
-        return error(("Unexpected token: %s"):format(stringifyTable(currentToken)))  
+        return error(("Unexpected token: %s"):format(stringifyTable(currentToken)))
       end
       returnValue = codeBlockExpression
     end
-    
+
     -- Consume an optional semicolon
     if self:compareTokenValueAndType(self:peek(), "Character", ";") then
       self:consume()
@@ -325,13 +322,12 @@ function Parser:new(tokens)
     local ast = {}
     while self.currentToken do
       local newAST = self:getNextAST(stopKeywords)
-      if newAST then
-        if newAST == -1 then break end
-        insert(ast, newAST)
-      end
+      if not newAST then error(("Unexpected token: %s"):format(stringifyTable(currentToken)))
+      elseif newAST == STOP_PARSING_VALUE then break end
+      
+      insert(ast, newAST)
       self:consume()
     end
-
     return ast
   end
   function ParserInstance:parse()

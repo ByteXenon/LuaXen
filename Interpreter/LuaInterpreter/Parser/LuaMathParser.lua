@@ -43,8 +43,11 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
     self.currentTokenIndex = luaParser.currentTokenIndex
   end
 
-  function PatchedMathParser:createOperatorNode(operatorValue, leftExpr, rightExpr, operand)
-    return { TYPE = "Operator", Value = operatorValue, Left = leftExpr, Right = rightExpr, Operand = operand }
+  function PatchedMathParser:createOperatorNode(operatorValue, leftExpr, rightExpr)
+    return { TYPE = "Operator", Value = operatorValue, Left = leftExpr, Right = rightExpr }
+  end
+  function PatchedMathParser:createUnaryOperatorNode(operatorValue, operand)
+    return { TYPE = "UnaryOperator", Value = operatorValue, Operand = operand }
   end
   function PatchedMathParser:createFunctionCallNode(expression, arguments)
     return { TYPE = "FunctionCall", Expression = expression, Arguments = arguments }
@@ -101,7 +104,7 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
       if self.operatorPrecedences.unary[value] then
         self:consumeToken()
         local operand = self:parseUnaryOperator()
-        return self:createOperatorNode(token.Value, nil, nil, operand)
+        return self:createUnaryOperatorNode(token.Value, operand)
       end
     elseif TYPE == "Character" and (value == "(" or value == ")") then
       if value == "(" then

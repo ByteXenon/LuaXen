@@ -9,8 +9,9 @@
 local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Beautifier/Beautifier")
 local Helpers = ModuleManager:loadModule("Helpers/Helpers")
 
-local Lexer = require("Interpreter/LuaInterpreter/Lexer/Lexer")
-local Parser = require("Interpreter/LuaInterpreter/Parser/Parser")
+local Lexer = ModuleManager:loadModule("Interpreter/LuaInterpreter/Lexer/Lexer")
+local Parser = ModuleManager:loadModule("Interpreter/LuaInterpreter/Parser/Parser")
+local LuaTemplates = ModuleManager:loadModule("Beautifier/LuaSyntaxTemplates")
 
 --* Export library functions *--
 local stringifyTable = Helpers.StringifyTable
@@ -19,78 +20,96 @@ local concat = table.concat
 local insert = table.insert
 local rep = string.rep
 
+local function stringFormat(str, formatTb)
+
+  str = str:gsub("{([\1-\124\126-\255]+)}", function(formatValue)
+    local foundFormatValue = formatTb[formatValue]
+    if foundFormatValue then return foundFormatValue end
+    return "" -- formatValue
+  end)
+
+  
+  return str
+end
+
+
 --* Beautifier *--
 local Beautifier = {}
 function Beautifier:new(codeOrAST)
   local BeautifierInstance = {}
   BeautifierInstance.ast = codeOrAST
-  
+  BeautifierInstance.indentationLevel = 0;
+
   if type(codeOrAST) == "string" then
     local Tokens = Lexer:new(Code):tokenize()
     local AST = Parser:new(Tokens):parse()
     BeautifierInstance.ast = AST
   end
 
-
-  function BeautifierInstance:addSpaces(indentationLevel)
-    return rep("  ", indentationLevel)
+  function BeautifierInstance:addSpaces(n)
+    return rep("  ", self.indentationLevel + (n or 0))
   end
+  function BeautifierInstance:increaseIndentation(n)
+    self.indentationLevel = self.indentationLevel + (n or 1)
+  end
+  function BeautifierInstance:decreaseIndentation(n)
+    self.indentationLevel = self.indentationLevel - (n or 1)
+  end
+  function BeautifierInstance:setIndentation(value)
+    self.indentationLevel = value
+  end
+
   function BeautifierInstance:expressionListToStr(list)
     local processedExpressionList = {}
     for _, node in ipairs(list) do
-      insert(processedExpressionList, self:processExpression(node))
+      local processedNode = self:processNode(node)
+      Helpers.PrintTable(node)
+      insert(processedExpressionList, processedNode )
     end
-    return #processedExpressionList ~= 0 and concat(processedExpressionList, ",")
+    return concat(processedExpressionList, ", ")
   end
-  function BeautifierInstance:processExpression(node)
-    local type = node.TYPE
-    Helpers.PrintTable(node)
-    if type == "Identifier" or type == "Number" then
-      local value = node.Value
-      return value
-    elseif type == "String" then
-      local value = node.Value
-      value = "'" .. value .. "'"
-      return value
-    elseif type == "Operator" then
-      local operand = node.Operand
-      if operand then
-        return
-      end
-      local left, right = node.Left, node.Right
-      local processedLeft = self:processExpression(left)
-      local processedRight = self:processExpression(right)
-      return processedLeft .. " " .. node.Value .. " " .. processedRight
-    end
-  end
-  function BeautifierInstance:processNode(node, indentationLevel)
-    local type = node.TYPE
-    if type == "LocalVariable" then
-      local varListStr = self:expressionListToStr(node.Variables)
-      local expressionListStr = self:expressionListToStr(node.Expressions)
-      
-      local newLine = self:addSpaces(indentationLevel) .. "local " .. varListStr
-      if expressionListStr then newLine = newLine .. " = " .. expressionListStr end
-      
-      return newLine .. ";"
-    elseif type == "IfStatement" then
-      return "if " .. self:processExpression(node.Statement) .. " then"
-             .. self:processCodeBlock(node.CodeBlock, indentationLevel + 1)
-             .. "\nend"
-    end
+  
+  function BeautifierInstance:processNode(node, isInCodeBlock)
+    local nodeType = node.TYPE
+    local nodeStringTemplate = LuaTemplates.StringTemplates[nodeType]
+
+    local currentIndentation = self:addSpaces()
+    local codeBlock = (node.CodeBlock and self:processCodeBlock(node.CodeBlock, 1))
+    
+    local formatTable = {
+      indentation = currentIndentation,
+      codeBlockIndentation = (isInCodeBlock and currentIndentation) or "",
+      postCodeBlockIndentation = (codeBlock == " " and "") or currentIndentation,
+
+      value = (node.Value),
+      expression = (node.Expression and self:processNode(node.Expression)),
+      expressions = (node.Expressions and self:expressionListToStr(node.Expressions)),
+      codeBlock = codeBlock,
+      variables = (node.Variables and concat(node.Variables, ", ")),
+      iteratorVariables = (node.IteratorVariables and concat(node.IteratorVariables, ", ")),
+      arguments = (node.Arguments and self:expressionListToStr(node.Arguments)),
+      leftExpression = (node.Left and self:processNode(node.Left)),
+      rightExpression = (node.Right and self:processNode(node.Right)),
+      operand = (node.Operand and self:processNode(node.Operand))
+    }
+
+    return stringFormat(nodeStringTemplate, formatTable)
   end
 
   function BeautifierInstance:processCodeBlock(codeBlock, indentationLevel)
-    local indentationLevel = indentationLevel or 0
+    if indentationLevel then self:increaseIndentation(indentationLevel) end
 
-    local code = ""
+    local lines = {}
     for _, node in ipairs(codeBlock) do
-      local newLine = self:processNode(node, indentationLevel)
-      if newLine then code = code .. "\n" .. newLine end
+      local newLine = self:processNode(node, true)
+      if newLine then insert(lines, newLine) end
     end
 
-    return code
+    if indentationLevel then self:decreaseIndentation(indentationLevel) end
+    if #lines == 0 then return " " end
+    return "\n" .. concat(lines, "\n") .. "\n"
   end
+
   function BeautifierInstance:run()
     return self:processCodeBlock(self.ast)
   end

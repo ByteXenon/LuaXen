@@ -1,6 +1,6 @@
 --[[
   Name: InstructionFunctionality.lua
-  Author: ByteXenon [Luna Gilbert]
+  Author: Luna G. Davis & Evan L. P.
   Date: 2023-09-XX
   All Rights Reserved.
 --]]

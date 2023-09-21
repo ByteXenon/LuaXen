@@ -104,7 +104,7 @@ function InstructionGenerator:new(AST, luaState)
       local expressions = node.Expressions
 
       for index, expression in ipairs(expressions) do
-        local expressionReturnRegister = self:evaluateExpression(expression)
+        local expressionReturnRegister = self:evaluateExpression(self.luaState.instructions, expression)
         local variableName = variables[index]
         if not variableName then
           self:deallocateRegister(expressionReturnRegister)
@@ -121,14 +121,14 @@ function InstructionGenerator:new(AST, luaState)
         end
       end
     elseif type == "FunctionCall" then
-      self:evaluateExpression(node)
+      self:evaluateExpression(self.luaState.instructions, node)
     elseif type == "IfStatement" then
       local typeOfCheck = node.Statement.TYPE
       if typeOfCheck == "Operator" then
         typeOfCheck = node.Statement.Value
       end
       
-      local returnRegister, statementInstructions = self:evaluateExpression(node.Statement)
+      local returnRegister, statementInstructions = self:evaluateExpression(self.luaState.instructions, node.Statement)
       self:addInstruction("TEST", returnRegister, 0, 0)
       self:addInstruction("JMP", (#node.Elseifs == 0 and 0))
     end
