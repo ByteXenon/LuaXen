@@ -16,10 +16,160 @@ local find = table.find or Helpers.TableFind
 --* Statements *--
 local Statements = {}
 
--- "<identifier>(, <identifier>)* (= <expression>(, <expression>)*)?" 
+-- function(<args>) <code_block> end
+function Statements:consumeFunction()
+  self:consume() -- Consume the "function" keyword
+  self:expectCurrentToken("Character", "(")
+  self:consume() -- Consume "("
+  local arguments = self:consumeMultipleIdentifiers()
+  self:expectCurrentToken("Character", ")")
+  self:consume() -- Consume ")"
+  local codeBlock = self:consumeCodeBlock({ "end" })
+  self:expectCurrentToken("Keyword", "end")
+  -- self:consume()
+  return self:createFunctionNode(arguments, codeBlock)
+end
+-- <table>.<index>
+function Statements:consumeTableIndex(currentExpression)
+  self:consume() -- Consume the "." symbol
+  local currentToken = self.currentToken --self:expectCurrentToken("Identifier")
+  -- self:consume()
+
+  if currentToken.TYPE == "Identifier" then
+    return self:createIndexNode({ TYPE = "String", Value = currentToken.Value }, currentExpression)
+  end
+
+  return self:createIndexNode(currentToken, currentExpression)
+end
+-- <table>[<expression>]
+function Statements:consumeBracketTableIndex(currentExpression)
+  self:consume() -- Consume the "[" symbol
+  local expression = self:consumeExpression()
+  self:expectNextToken("Character", "]")
+  return self:createIndexNode(expression, currentExpression)
+end
+-- <function_name>(<args>*)
+function Statements:consumeFunctionCall(currentExpression)
+  self:consume() -- Consume the "(" symbol
+  
+  -- Get parameters for the function
+  local parameters = {};
+  if not self:isClosingParenthesis(self.currentToken) then
+    parameters = self:consumeMultipleExpressions()
+  end
+
+  -- self:consume()
+  return self:createFunctionCallNode(currentExpression, parameters)
+end
+-- <table>:<method_name>(<args>*)
+function Statements:consumeMethodCall(currentExpression)
+  self:consume() -- Consume the ":" symbol
+  local functionName = self.currentToken
+  if functionName.TYPE ~= "Identifier" then
+    return error("Incorrect function name")
+  end
+  self:consume() -- Consume the name of the method
+
+  local functionCall = self:consumeFunctionCall(self:createIndexNode(functionName.Value, currentExpression))
+  return self:createFunctionCallNode(functionCall.Expression, self:addSelfToArguments(functionCall.Arguments))
+end
+-- { ( \[<expression>\] = <expression> | <identifier> = <expression> | <expression> ) ( , )? }*
+function Statements:consumeTable()
+  self:consume() -- Consume "{"
+  
+  local elements = {}
+  local index = 1
+  while not self:compareTokenValueAndType(self.currentToken, "Character", "}") do
+    local curToken = self.currentToken
+    if self:compareTokenValueAndType(curToken, "Character", "[") then
+      self:consume() -- Consume "["
+      local key = self:consumeExpression()
+      self:expectNextToken("Character", "]")
+      self:expectNextToken("Character", "=")
+      self:consume() -- Consume "="
+      local value = self:consumeExpression()
+      insert(elements, self:createTableElementNode(key, value))
+    elseif curToken.TYPE == "Identifier" and self:compareTokenValueAndType(self:peek(), "Character", "=") then
+      local key =  curToken.Value
+      self:consume() -- Consume key
+      self:consume() -- Consume "="
+      local value = self:consumeExpression()
+      insert(elements, self:createTableElementNode(key, value))
+    else
+      local value = self:consumeExpression()
+      insert(elements, self:createTableElementNode(self:createNumberNode(index), value))
+      index = index + 1
+    end
+
+    self:consume() -- Consume the last token of the expression
+    if self:compareTokenValueAndType(self.currentToken, "Character", ",") then
+      self:consume()
+    else
+      -- Break the loop, it will error if this is not the true end anyway.
+      break
+    end
+  end
+
+  -- self:consume() -- Consume "}"
+  return self:createTableNode(elements) 
+end
+function Statements:handleSpecialOperators(token, leftExpr)
+  if token.TYPE == "Character" then
+    -- <table>.<index>
+    if token.Value == "." then return self:consumeTableIndex(leftExpr)
+    -- <table>[<expression>]
+    elseif token.Value == "[" then return self:consumeBracketTableIndex(leftExpr) 
+    -- <table>:<method_name>(<args>*)
+    elseif token.Value == ":" then return self:consumeMethodCall(leftExpr)
+    -- <function_name>(<args>*)
+    elseif token.Value == "(" then return self:consumeFunctionCall(leftExpr)
+    end
+  end
+end
+function Statements:handleSpecialOperands(token)
+  if token.TYPE == "Character" then
+     -- { ( \[<expression>\] = <expression> | <identifier> = <expression> | <expression> ) ( , )? }*
+    if token.Value == "{" then return self:consumeTable() end
+  elseif token.TYPE == "Keyword" then
+    -- function(<args>) <code_block> end
+    if token.Value == "function" then return self:consumeFunction() end
+  end
+end
+-- <table>.<index> | <table>[<expression>]
+function Statements:_TableIndex(tableNode)
+  local curToken = self:expectCurrentToken("Character")
+
+  if curToken.Value == "." then return self:consumeTableIndex(tableNode)
+  elseif curToken.Value == "[" then return self:consumeBracketTableIndex(tableNode)
+  end
+end
+-- "<identifier> | (<identifier>(. <identifier>)*) | (<identifier>[<expression>])"
+function Statements:__Field()
+  local identifier = self:expectCurrentToken("Identifier")
+  
+  self:consume()
+  if self:tokenIsOneOf(self.currentToken, {{"Character", "."}, {"Character", "["}}) then
+    local tableElement = identifier
+    repeat
+      tableElement = self:_TableIndex(tableElement)
+      self:consume()
+    until not (self:tokenIsOneOf(self.currentToken, {{"Character", "."}, {"Character", "["}}))
+    
+    return tableElement
+  end
+  
+  return identifier
+end
+-- "<variable>(, <variable>)* (= <expression>(, <expression>)*)?" 
 function Statements:__VariableAssignment()
-  local variables = self:identifiersToValues(self:consumeMultipleIdentifiers(true))
+  local variables = {self:__Field()}
+  while self:compareTokenValueAndType(self.currentToken, "Character", ",") do
+    self:consume()
+    insert(variables, self:__Field())
+  end
+
   self:expectCurrentTokenAndConsume("Character", "=")
+  
   return {
     Expressions = self:consumeMultipleExpressions(),
     Variables = variables,
@@ -46,7 +196,7 @@ function Statements:_local()
     }
   end
 
-  local variables = self:identifiersToValues(self:consumeMultipleIdentifiers(true))
+  local variables = self:consumeMultipleIdentifiers(true)
   if not self:compareTokenValueAndType(self.currentToken, "Character", "=") then
     return {
       TYPE = "LocalVariable",
@@ -81,7 +231,8 @@ function Statements:_if()
   while self:compareTokenValueAndType(self.currentToken, "Keyword", "elseif") do
     self:consume() -- Consume "elseif"
     local newElseIf = {
-      Condition = self:consumeExpression()
+      Condition = self:consumeExpression(),
+      TYPE = "ElseIfStatement",
     }
     self:expectNextTokenAndConsume("Keyword", "then")
     newElseIf.CodeBlock = self:consumeCodeBlock({"end", "else", "elseif"})
@@ -90,7 +241,8 @@ function Statements:_if()
   -- Consume an optional "else" statement
   if self:compareTokenValueAndType(self.currentToken, "Keyword", "else") then
     self:consume() -- Consume "else"
-    newIfStatement.Else = self:consumeCodeBlock({"end"})
+    newIfStatement.Else.CodeBlock = self:consumeCodeBlock({"end"})
+    newIfStatement.Else.TYPE = "elseStatement"
   end
 
   return newIfStatement
@@ -206,7 +358,7 @@ end
 local function consumeNumericLoop(self, iteratorVariables)
   self:expectCurrentTokenAndConsume("Character", "=")
   local expressions = self:consumeMultipleExpressions(3)
-  self:expectNextTokenAndConsume("Keyword", "do")
+  self:expectCurrentTokenAndConsume("Keyword", "do")
   local codeBlock = self:consumeCodeBlock({"end"})
 
   return {

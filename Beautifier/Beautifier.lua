@@ -21,17 +21,13 @@ local insert = table.insert
 local rep = string.rep
 
 local function stringFormat(str, formatTb)
-
   str = str:gsub("{([\1-\124\126-\255]+)}", function(formatValue)
     local foundFormatValue = formatTb[formatValue]
     if foundFormatValue then return foundFormatValue end
     return "" -- formatValue
   end)
-
-  
   return str
 end
-
 
 --* Beautifier *--
 local Beautifier = {}
@@ -63,7 +59,6 @@ function Beautifier:new(codeOrAST)
     local processedExpressionList = {}
     for _, node in ipairs(list) do
       local processedNode = self:processNode(node)
-      Helpers.PrintTable(node)
       insert(processedExpressionList, processedNode )
     end
     return concat(processedExpressionList, ", ")
@@ -71,21 +66,21 @@ function Beautifier:new(codeOrAST)
   
   function BeautifierInstance:processNode(node, isInCodeBlock)
     local nodeType = node.TYPE
-    local nodeStringTemplate = LuaTemplates.StringTemplates[nodeType]
-
     local currentIndentation = self:addSpaces()
     local codeBlock = (node.CodeBlock and self:processCodeBlock(node.CodeBlock, 1))
-    
     local formatTable = {
       indentation = currentIndentation,
       codeBlockIndentation = (isInCodeBlock and currentIndentation) or "",
       postCodeBlockIndentation = (codeBlock == " " and "") or currentIndentation,
 
       value = (node.Value),
+      index = (node.Index and self:processNode(node.Index)),
       expression = (node.Expression and self:processNode(node.Expression)),
+      condition = (node.Condition and self:processNode(node.Condition)),
       expressions = (node.Expressions and self:expressionListToStr(node.Expressions)),
+      parameters = (node.Parameters and self:expressionListToStr(node.Parameters)),
       codeBlock = codeBlock,
-      variables = (node.Variables and concat(node.Variables, ", ")),
+      variables = (node.Variables and self:expressionListToStr(node.Variables)),
       iteratorVariables = (node.IteratorVariables and concat(node.IteratorVariables, ", ")),
       arguments = (node.Arguments and self:expressionListToStr(node.Arguments)),
       leftExpression = (node.Left and self:processNode(node.Left)),
@@ -93,9 +88,18 @@ function Beautifier:new(codeOrAST)
       operand = (node.Operand and self:processNode(node.Operand))
     }
 
+    local nodeFunctionTemplate = LuaTemplates.FunctionTemplates[nodeType]
+    if nodeFunctionTemplate then
+      return nodeFunctionTemplate(self, node, isInCodeBlock, formatTable)
+    end
+
+    local nodeStringTemplate = LuaTemplates.StringTemplates[nodeType]
+    if not nodeStringTemplate then
+      error("Unsupported node: " .. Helpers.StringifyTable(node))
+    end
+
     return stringFormat(nodeStringTemplate, formatTable)
   end
-
   function BeautifierInstance:processCodeBlock(codeBlock, indentationLevel)
     if indentationLevel then self:increaseIndentation(indentationLevel) end
 

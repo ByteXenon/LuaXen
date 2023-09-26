@@ -10,6 +10,7 @@ local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Interprete
 local Helpers = ModuleManager:loadModule("Helpers/Helpers")
 
 local MathParser = ModuleManager:loadModule("Interpreter/LuaInterpreter/MathParser/Parser/Parser")
+local Debugger = ModuleManager:loadModule("Debugger/Debugger")
 
 --* Export library functions *--
 local stringifyTable = Helpers.StringifyTable
@@ -17,7 +18,7 @@ local stringifyTable = Helpers.StringifyTable
 --* LuaMathParser *--
 local LuaMathParser = {}
 function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
-  local errorOnFail = (errorOnFail == nil and true)
+  local errorOnFail = false
 
   local PatchedMathParser = MathParser:new(tokens, {
     unary = {
@@ -43,22 +44,6 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
     self.currentTokenIndex = luaParser.currentTokenIndex
   end
 
-  function PatchedMathParser:createOperatorNode(operatorValue, leftExpr, rightExpr)
-    return { TYPE = "Operator", Value = operatorValue, Left = leftExpr, Right = rightExpr }
-  end
-  function PatchedMathParser:createUnaryOperatorNode(operatorValue, operand)
-    return { TYPE = "UnaryOperator", Value = operatorValue, Operand = operand }
-  end
-  function PatchedMathParser:createFunctionCallNode(expression, arguments)
-    return { TYPE = "FunctionCall", Expression = expression, Arguments = arguments }
-  end
-  function PatchedMathParser:createIndexNode(index, value)
-    return { TYPE = "Index", Index = index, Value = value }
-  end
-  function PatchedMathParser:createTableNode(values)
-    return { TYPE = "Table", Values = values }
-  end
-
   function PatchedMathParser:isClosingParenthesis(token)
     return token.TYPE == "Character" and token.Value == ")"
   end
@@ -70,23 +55,32 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
     end
 
     local left = self:parseUnaryOperator()
-    if not left then return end
+    if not left then
+      self.unexpectedEnd = true;
+      return currentToken
+    end
+
     while true do
       local token = self:getCurrentToken()
-      if not token or self:isClosingParenthesis(token) then break end
+      if self:isClosingParenthesis(token) and self.isInParentheses then break end
+      if not token or self:isClosingParenthesis(token) then
+        self.unexpectedEnd = true
+        break
+      end
 
       local precedence = self:getPrecedence(token)
       if precedence then
         if precedence <= minPrecedence then break end
-
         self:consumeToken()
         local right = self:parseBinaryOperator(precedence)
-        left = self:createOperatorNode(token.Value, left, right)
+        left = luaParser:createOperatorNode(token.Value, left, right)
       elseif not precedence then
         self:syncLuaParser()
         local newLeft = luaParser:handleSpecialOperators(token, left)
         self:syncMathParser()
         if not newLeft then self.unexpectedEnd = true; break end
+
+        self:consumeToken() -- Consume the last character of an operator
         left = newLeft
       end
     end
@@ -94,6 +88,7 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
   end;
   function PatchedMathParser:parseUnaryOperator()
     local token = self:getCurrentToken()
+
     if not token then
       return error("Unexpected end of the expression")
     end 
@@ -104,19 +99,27 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
       if self.operatorPrecedences.unary[value] then
         self:consumeToken()
         local operand = self:parseUnaryOperator()
-        return self:createUnaryOperatorNode(token.Value, operand)
+        return luaParser:createUnaryOperatorNode(token.Value, operand)
       end
     elseif TYPE == "Character" and (value == "(" or value == ")") then
       if value == "(" then
         self:consumeToken()
+        self.isInParentheses = true
         local expression = self:parseExpression()
         local currentToken = self:getCurrentToken() 
         if not currentToken or not self:isClosingParenthesis(currentToken) then
           error("Mismatched parentheses")
         end
+        self.isInParentheses = false
         self:consumeToken()
         return expression
       elseif value == ")" then
+        if not errorOnFail then
+          self.unexpectedEnd = true;
+          self.errorMessage = errorMessage
+          return
+        end
+
         error("Unexpected closing parenthesis")
       end
     elseif TYPE == "String" or TYPE == "Number" or TYPE == "Identifier" or TYPE == "Constant" then
@@ -126,6 +129,8 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
       self:syncLuaParser()
       local operand = luaParser:handleSpecialOperands(token)
       self:syncMathParser()
+      self:consumeToken() -- Consume the last character of an operand
+
       if operand then return operand end
     end
 
@@ -138,7 +143,14 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
     return error(errorMessage)
   end;
   function PatchedMathParser:parse()
+    local startIndex = self.currentTokenIndex
     local expression = self:parseExpression()
+    local endIndex = self.currentTokenIndex - ((self.unexpectedEnd and 1) or 0)
+    local consumedTokens = {}
+    for i = startIndex, endIndex do
+      table.insert(consumedTokens, luaParser.tokens[i])
+    end
+    --print("Consumed tokens: " .. Helpers.StringifyTable(consumedTokens) .. ", Got expression: " .. Helpers.StringifyTable(expression or {}), self.unexpectedEnd)
 
     luaParser.currentTokenIndex = self.currentTokenIndex - ((self.unexpectedEnd and 1) or 0)
     luaParser.currentToken = luaParser.tokens[luaParser.currentTokenIndex]

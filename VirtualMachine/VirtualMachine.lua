@@ -56,8 +56,6 @@ function VirtualMachine:new(luaState)
     return unpack(self.returnValues or {})
   end;
 
-
-  -- I added some debugging functions so it would be easier to work with the VM
   function VirtualMachineInstance:constantDump()
     print("*--------Called constant dump--------*")
     Helpers.PrintTable(self.state.constants)

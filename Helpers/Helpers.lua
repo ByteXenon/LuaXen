@@ -331,6 +331,22 @@ end
 function Helpers.PrintTable(Table, Spacing)
   return print(Helpers.StringifyTable(Table, Spacing))
 end
+
+function Helpers.SerializeValue(value)
+  local valueType = type(value)
+  if valueType == "string" then
+    value = value:gsub("\\'", "\1<QUOTE>\1")
+    value = value:gsub("'", "\'")
+    value = value:gsub("\1<QUOTE>\1", "\\'")
+    return "'" .. value .. "'"
+  elseif valueType == "table" then
+    return Helpers.StringifyTable(value)
+  elseif valueType == "function" then
+    return "function()" .. Helpers.StringifyTable(debug.getinfo(value))
+  end
+  
+  return tostring(value)
+end
 --
 
 -- Split strings to lines,

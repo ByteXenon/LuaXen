@@ -3,6 +3,8 @@
 *.sh
 *.o
 *.out
+*.log
+*.tmp
 /*test*.lua
 
 # Ignore those directories, they're not ready yet.
@@ -14,6 +16,8 @@
 /Libraries
 
 # Too legacy to keep it alive
+/Interpreter/LuaInterpreter/Interpreter.lua
+/Interpreter/LuaInterpreter/SyntaxStatementParser.lua
 /Interpreter/ChainingParser
 /Interpreter/Synthax
 /Interpreter/*.lua

@@ -11,6 +11,7 @@ local Helpers = ModuleManager:loadModule("Helpers/Helpers")
 
 local StatementParser = ModuleManager:loadModule("Interpreter/LuaInterpreter/Parser/StatementParser")
 local LuaMathParser = ModuleManager:loadModule("Interpreter/LuaInterpreter/Parser/LuaMathParser")
+local Debugger = ModuleManager:loadModule("Debugger/Debugger")
 
 --* Export library functions *--
 local stringifyTable = Helpers.StringifyTable
@@ -27,8 +28,10 @@ function Parser:new(tokens)
   ParserInstance.currentToken = tokens[1]
   ParserInstance.currentTokenIndex = 1
 
-  for index, func in pairs(StatementParser) do
-    ParserInstance[index] = func
+  for _, tb in ipairs({StatementParser}) do
+    for index, func in pairs(tb) do
+      ParserInstance[index] = func
+    end
   end
 
   function ParserInstance:peek(n)
@@ -93,11 +96,15 @@ function Parser:new(tokens)
     return newArguments
   end
 
-  function ParserInstance:createOperatorNode(operatorValue, leftExpr, rightExpr, operand)
-    return { TYPE = "Operator", Value = operatorValue, Left = leftExpr, Right = rightExpr, Operand = operand }
+  
+  function ParserInstance:createOperatorNode(operatorValue, leftExpr, rightExpr)
+    return { TYPE = "Operator", Value = operatorValue, Left = leftExpr, Right = rightExpr }
   end
-  function ParserInstance:createFunctionCallNode(expression, arguments)
-    return { TYPE = "FunctionCall", Expression = expression, Arguments = arguments }
+  function ParserInstance:createUnaryOperatorNode(operatorValue, operand)
+    return { TYPE = "UnaryOperator", Value = operatorValue, Operand = operand }
+  end
+  function ParserInstance:createFunctionCallNode(expression, parameters)
+    return { TYPE = "FunctionCall", Expression = expression, Parameters = parameters }
   end
   function ParserInstance:createIdentifierNode(value)
     return { TYPE = "Identifier", Value = value }
@@ -105,8 +112,8 @@ function Parser:new(tokens)
   function ParserInstance:createNumberNode(value)
     return { TYPE = "Number", Value = value }
   end
-  function ParserInstance:createIndexNode(index, value)
-    return { TYPE = "Index", Index = index, Value = value }
+  function ParserInstance:createIndexNode(index, expression)
+    return { TYPE = "Index", Index = index, Expression = expression }
   end
   function ParserInstance:createTableNode(elements)
     return { TYPE = "Table", Elements = elements }
@@ -125,29 +132,35 @@ function Parser:new(tokens)
     end
     return values
   end
-  
   function ParserInstance:consumeExpression(errorOnFail)
     local expression = LuaMathParser:getExpression(self, self.tokens, self.currentTokenIndex, errorOnFail)
     return expression
   end
-
   function ParserInstance:consumeMultipleExpressions(maxAmount)
     local expressions = { self:consumeExpression(false) }
-    
+
     if #expressions == 0 then return expressions end
-    while self:compareTokenValueAndType(self:peek(), "Character", ",") do
-      if maxAmount and #expressions >= maxAmount then break end
-      self:consume(2)
-      local expression = self:consumeExpression()
-      insert(expressions, expression)
+    if self:compareTokenValueAndType(self:peek(), "Character", ",") then
+      while self:compareTokenValueAndType(self:peek(), "Character", ",") do 
+        if maxAmount and #expressions >= maxAmount then break end
+        self:consume() -- Consume the last token of the last expression
+        self:consume() -- Consume ","
+        --print("------------------")
+        insert(expressions, self:consumeExpression(false))
+        --Helpers.PrintTable(expressions)
+        --Helpers.PrintTable(self.currentToken)
+        --print("------------------")
+      end
     end
+    self:consume()
+    --Helpers.PrintTable(self.currentToken)
+    
     return expressions
   end
-
   function ParserInstance:consumeMultipleIdentifiers(oneOrMore)
     local identifiers = {}
     if oneOrMore then self:expectCurrentToken("Identifier") end
-
+  
     while self:compareTokenValueAndType(self.currentToken, "Identifier") do
       local identifier = self.currentToken
       insert(identifiers, identifier)
@@ -159,127 +172,6 @@ function Parser:new(tokens)
     
     return identifiers
   end
-
-  -- function(<args>) <code_block> end
-  function ParserInstance:consumeFunction()
-    self:consume() -- Consume the "function" keyword
-    self:expectCurrentToken("Character", "(")
-    self:consume() -- Consume "("
-    local arguments = self:consumeMultipleIdentifiers()
-    self:expectCurrentToken("Character", ")")
-    self:consume() -- Consume ")"
-    local codeBlock = self:consumeCodeBlock({ "end" })
-    self:expectCurrentToken("Keyword", "end")
-    self:consume()
-    return self:createFunctionNode(arguments, codeBlock)
-  end
-  -- <table>.<index>
-  function ParserInstance:consumeTableIndex(currentExpression)
-    self:consume() -- Consume the "." symbol
-    local currentToken = self.currentToken
-    --assert(currentToken.TYPE == "Identifier", "Invalid expression")
-    self:consume()
-    if currentToken.TYPE == "Identifier" then
-      return self:createIndexNode({ TYPE = "String", Value = currentToken.Value }, currentExpression)
-    end
-    return self:createIndexNode(currentToken, currentExpression)
-  end
-  -- <table>[<expression>]
-  function ParserInstance:consumeBracketTableIndex(currentExpression)
-    self:consume() -- Consume the "[" symbol
-    local expression = self:consumeExpression()
-    self:expectNextTokenAndConsume("Character", "]")
-    return self:createIndexNode(expression, currentExpression)
-  end
-  -- <table>:<method_name>(<args>*)
-  function ParserInstance:consumeMethodCall(currentExpression)
-    self:consume() -- Consume the ":" symbol
-    local functionName = self.currentToken
-    if functionName.TYPE ~= "Identifier" then
-      return error("Incorrect function name")
-    end
-    self:consume() -- Consume the function name
-    local functionCall = self:consumeFunctionCall(self:createIndexNode(functionName.Value, currentExpression))
-
-    return self:createFunctionCallNode(functionCall.Expression, self:addSelfToArguments(functionCall.Arguments))
-  end
-  -- <function_name>(<args>*)
-  function ParserInstance:consumeFunctionCall(currentExpression)
-    self:consume() -- Consume the "(" symbol
-    
-    -- Get arguments for the function
-    local arguments = {};
-    if not self:isClosingParenthesis(self.currentToken) then
-      arguments = self:consumeMultipleExpressions()
-    end
-
-    self:consume()
-    return self:createFunctionCallNode(currentExpression, arguments)
-  end
-  -- { ( \[<expression>\] = <expression> | <identifier> = <expression> | <expression> ) ( , )? }*
-  function ParserInstance:consumeTable()
-    self:consume() -- Consume "{"
-    
-    local elements = {}
-    local index = 1
-    while not self:compareTokenValueAndType(self.currentToken, "Character", "}") do
-      local curToken = self.currentToken
-      if self:compareTokenValueAndType(curToken, "Character", "[") then
-        self:consume() -- Consume "["
-        local key = self:consumeExpression()
-        self:expectNextToken("Character", "]")
-        self:expectNextToken("Character", "=")
-        self:consume() -- Consume "="
-        local value = self:consumeExpression()
-        insert(elements, self:createTableElementNode(key, value))
-      elseif curToken.TYPE == "Identifier" and self:compareTokenValueAndType(self:peek(), "Character", "=") then
-        local key =  curToken.Value
-        self:consume() -- Consume key
-        self:consume() -- Consume "="
-        local value = self:consumeExpression()
-        insert(elements, self:createTableElementNode(key, value))
-      else
-        local value = self:consumeExpression()
-        insert(elements, self:createTableElementNode(self:createNumberNode(index), value))
-        index = index + 1
-      end
-
-      self:consume() -- Consume the last token of the expression
-      if self:compareTokenValueAndType(self.currentToken, "Character", ",") then
-        self:consume()
-      else
-        -- Break the loop, it will error if this is not the true end anyway.
-        break
-      end
-    end
-
-    self:consume() -- Consume "}"
-    return self:createTableNode(elements) 
-  end
-
-  function ParserInstance:handleSpecialOperators(token, leftExpr)
-    if token.TYPE == "Character" then
-      -- <table>.<index>
-      if token.Value == "." then return self:consumeTableIndex(leftExpr)
-      -- <table>[<expression>]
-      elseif token.Value == "[" then return self:consumeBracketTableIndex(leftExpr) 
-      -- <table>:<method_name>(<args>*)
-      elseif token.Value == ":" then return self:consumeMethodCall(leftExpr)
-      -- <function_name>(<args>*)
-      elseif token.Value == "(" then return self:consumeFunctionCall(leftExpr)
-      end
-    end
-  end
-  function ParserInstance:handleSpecialOperands(token)
-    if token.TYPE == "Character" then
-       -- { ( \[<expression>\] = <expression> | <identifier> = <expression> | <expression> ) ( , )? }*
-      if token.Value == "{" then return self:consumeTable() end
-    elseif token.TYPE == "Keyword" then
-      -- function(<args>) <code_block> end
-      if token.Value == "function" then return self:consumeFunction() end
-    end
-  end
-
   function ParserInstance:isValidCodeBlockExpression(expression)
     return expression["TYPE"] == "FunctionCall" 
   end
@@ -307,7 +199,7 @@ function Parser:new(tokens)
       local codeBlockExpression = self:consumeExpression()
 
       if not self:isValidCodeBlockExpression(codeBlockExpression) then
-        return error(("Unexpected token: %s"):format(stringifyTable(currentToken)))
+        return error(("Unexpected token: %s (Maybe you forgot to place a ';' there?)"):format(stringifyTable(codeBlockExpression)))
       end
       returnValue = codeBlockExpression
     end
@@ -331,7 +223,9 @@ function Parser:new(tokens)
     return ast
   end
   function ParserInstance:parse()
-    return self:consumeCodeBlock()
+    local returnValue = self:consumeCodeBlock()
+    
+    return returnValue
   end
   
   return ParserInstance
