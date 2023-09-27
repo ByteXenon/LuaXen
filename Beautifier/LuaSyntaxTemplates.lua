@@ -62,7 +62,7 @@ functionTemplates = {
     local templateWithParentheses = "{codeBlockIndentation}({expression})({parameters})"
 
     local expressionType = node.Expression and node.Expression.TYPE
-    if expressionType ~= "Identifier" then
+    if expressionType ~= "Identifier" and expressionType ~= "Index" then
       return stringFormat(templateWithParentheses, formatTable)
     end
     return stringFormat(standardTemplate, formatTable)

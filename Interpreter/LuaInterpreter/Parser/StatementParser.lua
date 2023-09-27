@@ -56,9 +56,10 @@ function Statements:consumeFunctionCall(currentExpression)
   local parameters = {};
   if not self:isClosingParenthesis(self.currentToken) then
     parameters = self:consumeMultipleExpressions()
+    self:consume()
   end
 
-  -- self:consume()
+  
   return self:createFunctionCallNode(currentExpression, parameters)
 end
 -- <table>:<method_name>(<args>*)
@@ -358,7 +359,7 @@ end
 local function consumeNumericLoop(self, iteratorVariables)
   self:expectCurrentTokenAndConsume("Character", "=")
   local expressions = self:consumeMultipleExpressions(3)
-  self:expectCurrentTokenAndConsume("Keyword", "do")
+  self:expectNextTokenAndConsume("Keyword", "do")
   local codeBlock = self:consumeCodeBlock({"end"})
 
   return {

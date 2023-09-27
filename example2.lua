@@ -12,23 +12,27 @@ local Parser = ModuleManager:loadModule("Interpreter/LuaInterpreter/Parser/Parse
 local InstructionGenerator = ModuleManager:loadModule("Interpreter/LuaInterpreter/InstructionGenerator/InstructionGenerator")
 local VirtualMachine = ModuleManager:loadModule("VirtualMachine/VirtualMachine")
 local Beautifier = ModuleManager:loadModule("Beautifier/Beautifier")
+local ASTExecutor = ModuleManager:loadModule("ASTExecutor/ASTExecutor")
+local ASTObfuscator = require("Obfuscator/ASTObfuscator/ASTObfuscator")
 
 local code = [=[
-  for i = 1, 10, 1 do
-  for i,v in pairs({1}) do
-  do
-local a = (function(i)
-  return function(a, b)
-    print("Hello, world: ", a, b)
-  end)
-end)(i);
-local b = a(1, 2)
-end
-end
-end
+  for i = 1, 3, 1 do
+    for i,v in pairs({1}) do
+    do
+  local a = (function(i)
+    return function(a, b)
+      print("Hello, world: ", a, b)
+    end
+  end)(i);
+  local b = a(1, 2)
+  end
+  end
+  end
 ]=]
 
 
 local tokens = Lexer:new(code):tokenize()
 local AST = Parser:new(tokens):parse()
-print(Beautifier:new(AST):run())
+local obfuscatedAST = ASTObfuscator:new(AST):run() 
+print(Beautifier:new(obfuscatedAST):run())
+ASTExecutor:new(obfuscatedAST):execute()

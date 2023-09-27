@@ -136,6 +136,9 @@ function Lexer:new(string)
         return error("Unexpected end")
       elseif stringTb[matchedIndex] == curChar then
         matchedIndex = matchedIndex + 1
+        if matchedIndex > stringLen then
+          break
+        end
       else
         matchedIndex = 1
       end

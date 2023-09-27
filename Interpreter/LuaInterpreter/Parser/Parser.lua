@@ -152,8 +152,7 @@ function Parser:new(tokens)
         --print("------------------")
       end
     end
-    self:consume()
-    --Helpers.PrintTable(self.currentToken)
+    -- self:consume()
     
     return expressions
   end
@@ -197,11 +196,12 @@ function Parser:new(tokens)
       return STOP_PARSING_VALUE
     else
       local codeBlockExpression = self:consumeExpression()
-
+      
       if not self:isValidCodeBlockExpression(codeBlockExpression) then
-        return error(("Unexpected token: %s (Maybe you forgot to place a ';' there?)"):format(stringifyTable(codeBlockExpression)))
+        return error(("Unexpected token: %s (Perhaps you forgot to place a ';' there?)"):format(stringifyTable(codeBlockExpression)))
       end
       returnValue = codeBlockExpression
+      -- self:consume()
     end
 
     -- Consume an optional semicolon

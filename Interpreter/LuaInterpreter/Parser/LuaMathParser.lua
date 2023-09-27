@@ -75,10 +75,11 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
         local right = self:parseBinaryOperator(precedence)
         left = luaParser:createOperatorNode(token.Value, left, right)
       elseif not precedence then
+        
         self:syncLuaParser()
         local newLeft = luaParser:handleSpecialOperators(token, left)
         self:syncMathParser()
-        if not newLeft then self.unexpectedEnd = true; break end
+        if not newLeft then self.unexpectedEnd = true; return left end
 
         self:consumeToken() -- Consume the last character of an operator
         left = newLeft
@@ -106,7 +107,7 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
         self:consumeToken()
         self.isInParentheses = true
         local expression = self:parseExpression()
-        local currentToken = self:getCurrentToken() 
+        local currentToken = self:getCurrentToken()
         if not currentToken or not self:isClosingParenthesis(currentToken) then
           error("Mismatched parentheses")
         end
@@ -130,6 +131,7 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
       local operand = luaParser:handleSpecialOperands(token)
       self:syncMathParser()
       self:consumeToken() -- Consume the last character of an operand
+      
 
       if operand then return operand end
     end
@@ -138,23 +140,14 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
     if not errorOnFail then
       self.unexpectedEnd = true;
       self.errorMessage = errorMessage
-      return
+      return 
     end
     return error(errorMessage)
   end;
   function PatchedMathParser:parse()
-    local startIndex = self.currentTokenIndex
     local expression = self:parseExpression()
-    local endIndex = self.currentTokenIndex - ((self.unexpectedEnd and 1) or 0)
-    local consumedTokens = {}
-    for i = startIndex, endIndex do
-      table.insert(consumedTokens, luaParser.tokens[i])
-    end
-    --print("Consumed tokens: " .. Helpers.StringifyTable(consumedTokens) .. ", Got expression: " .. Helpers.StringifyTable(expression or {}), self.unexpectedEnd)
-
     luaParser.currentTokenIndex = self.currentTokenIndex - ((self.unexpectedEnd and 1) or 0)
     luaParser.currentToken = luaParser.tokens[luaParser.currentTokenIndex]
-    
     return expression
   end;
 
