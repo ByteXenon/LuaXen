@@ -12,11 +12,13 @@ local insert = table.insert
 local tableLen = Helpers.TableLen
 
 local ASTExecutor = {}
-function ASTExecutor:new(AST)
+function ASTExecutor:new(AST, varArg)
   local ASTExecutorInstance = {}
+  -- TODO: Add LuaState support
   ASTExecutorInstance.ast = AST
   ASTExecutorInstance.locals = {}
   ASTExecutorInstance.returnValues = nil
+  ASTExecutorInstance.varArg = (varArg or {})
 
   function ASTExecutorInstance:setLocalVariable(localName, localValue)
     local locals = self.locals
@@ -69,8 +71,8 @@ function ASTExecutor:new(AST)
     elseif nodeType == "FunctionCall" then
       local expression = self:executeExpression(node.Expression)
       local parameters = self:executeExpressions(node.Parameters)
-
-      return expression(unpack(parameters))
+      local returnValues = {expression(unpack(parameters))}
+      return unpack(returnValues)
     elseif nodeType == "Constant" then
       local nodeValue = node.Value
       return nodeValue 
@@ -82,9 +84,9 @@ function ASTExecutor:new(AST)
       local nodeValue = node.Value
 
       local operand = self:executeExpression(node.Operand)
-      if nodeValue == "#" then return #operand
-      elseif nodeValue == "-" then return -operand
-      elseif nodeValue == "not" then return not operand
+      if     nodeValue == "not" then return not operand
+      elseif nodeValue == "#"   then return #   operand
+      elseif nodeValue == "-"   then return -   operand
       end
     elseif nodeType == "Operator" then
       local nodeValue = node.Value
@@ -107,18 +109,27 @@ function ASTExecutor:new(AST)
       elseif nodeValue == "-"   then return left -   right
       end
     elseif nodeType == "Index" then
-      local expression = self:executeExpression(node.Expression)
-      local index = self:executeExpression(node.Index)
+      local expression = (node.Expression.TYPE and self:executeExpression(node.Expression)) or node.Expression
+      local index = (node.Index.TYPE and self:executeExpression(node.Index)) or node.Index
       return expression[index]
     elseif nodeType == "Function" then
       return (function(...)
-        local arguments = node.Arguments
+        local parameters = node.Parameters
         local givenArguments = {...}
         local oldLocals = self:copyLocals()
-        for index, argumentTable in pairs(arguments) do
-          self:setLocalVariable(argumentTable.Value, givenArguments[index])
+        
+        for index, paramName in pairs(parameters) do
+          if paramName == "..." then
+            local varArgTb = {}
+            while givenArguments[index] do
+              insert(varArgTb, givenArguments[index])
+              index = index + 1
+            end
+          end
+          self:setLocalVariable(paramName, givenArguments[index])
         end
         local returnValues = {self:executeCodeBlock(node.CodeBlock)}
+
         self.locals = oldLocals
         return unpack(returnValues)
       end)
@@ -149,7 +160,7 @@ function ASTExecutor:new(AST)
     if nodeType == "FunctionCall" then
       local expression = self:executeExpression(node.Expression)
       local parameters = self:executeExpressions(node.Parameters)
-
+  
       expression(unpack(parameters))
     elseif nodeType == "LocalVariable" then
       local variables = node.Variables
@@ -158,6 +169,22 @@ function ASTExecutor:new(AST)
       for index, variable in ipairs(variables) do
         self:setLocalVariable(variable.Value, expressions[index])
       end
+    elseif nodeType == "LocalFunction" then
+      self:setLocalVariable(node.Name, function(...)
+        local arguments = node.Arguments
+        local givenArguments = {...}
+        local oldLocals = self:copyLocals()
+        
+        for index, argumentTable in pairs(arguments) do
+          self:setLocalVariable(argumentTable, givenArguments[index])
+        end
+        local returnValues = {self:executeCodeBlock(node.CodeBlock)}
+        
+        self.locals = oldLocals
+        return unpack(returnValues)
+      end)
+    elseif nodeType == "Function" then
+
     elseif nodeType == "VariableAssignment" then
       local locals = self.locals
       local variables = node.Variables
@@ -229,7 +256,7 @@ function ASTExecutor:new(AST)
     end
   end
   function ASTExecutorInstance:executeCodeBlock(nodeList, saveLocals)
-    local oldLocals = self.locals
+    local oldLocals = self:copyLocals()
     for _, node in ipairs(nodeList) do
       self:executeNode(node)
       local returnValues = self.returnValues

@@ -6,28 +6,42 @@
 --]]
 
 --local Interpreter = require("Interpreter/Main")
-local ModuleManager = require("ModuleManager/ModuleManager")
+local ModuleManager = require("ModuleManager/ModuleManager"):newFile("lua")
 
-local Parser = require("Parser/Main")
-local VirtualMachine = require("VirtualMachine/Main")
-local Helpers = require("Helpers/Helpers")
-local OPCodes = require("OPCodes/Main")
-local Optimizer = require("Optimizer/Main")
+local Helpers = ModuleManager:loadModule("Helpers/Helpers")
+local Lexer = ModuleManager:loadModule("Interpreter/LuaInterpreter/Lexer/Lexer")
+local Parser = ModuleManager:loadModule("Interpreter/LuaInterpreter/Parser/Parser")
+local InstructionGenerator = ModuleManager:loadModule("Interpreter/LuaInterpreter/InstructionGenerator/InstructionGenerator")
+local ASTToTokensConverter = ModuleManager:loadModule("Interpreter/LuaInterpreter/ASTToTokensConverter/ASTToTokensConverter")
+local VirtualMachine = ModuleManager:loadModule("VirtualMachine/VirtualMachine")
+local Beautifier = ModuleManager:loadModule("Beautifier/Beautifier")
+local Minifier = ModuleManager:loadModule("Minifier/Minifier")
+local ASTExecutor = ModuleManager:loadModule("ASTExecutor/ASTExecutor")
+local ASTObfuscator = ModuleManager:loadModule("Obfuscator/ASTObfuscator/ASTObfuscator")
+
 
 local lua = {
-  option_switches = {},
+  optionSwitches = {},
   includes = {},
-  COPYRIGHT = "Lua 5.1.5  Copyright (C) 2023"
+  COPYRIGHT = "Lua 5.1.5  Copyright (C) 2023",
+  VERSION   = "Lua 5.1"
+}
+lua.params = {
+  ["-e"] = {{"stat"}, "execute string 'stat'",                            lua.executeString},
+  ["-l"] = {{"name"}, "require library 'name'",                           lua.includeLibrary},
+  ["-i"] = {nil,     "enter interactive mode after executing 'script'", lua.interactiveMode},
+  ["-v"] = {nil,     "show version information",                        lua.printVersion},
+  ["--"] = {nil,     "stop handling options"},
+  ["-"] =  {nil,     "execute stdin and stop handling options"}
 }
 
-function lua.print_help()
-  local Lines = {}
-  for Index, Param in ipairs(lua.params) do
-    local Commands = table.concat(Param[1], ", ")
-    local ArgName = Param[2] or ''
-    local Description = Param[3] or ''
+function lua.printHelp()
+  local lines = {}
+  for index, param in pairs(lua.params) do
+    local args = (param[1] and table.concat(param[1], ", ")) or ""
+    local description = param[2] or ""
 
-    table.insert(Lines, {"  ", Commands, "  ", ArgName, "  ", Description})
+    table.insert(lines, {"  ", index, "  ", argName, "  ", description})
   end
 
   print("usage: lua [options] [script [args]].")
@@ -35,72 +49,59 @@ function lua.print_help()
   Helpers.PrintAligned(Lines)
 end
 
-function lua.print_version()
+function lua.printVersion()
   print(lua.COPYRIGHT)
 end
 
-function lua.interactive_mode()
+function lua.interactiveMode()
 
 end
 
-function lua.parse_args(args)
-  local file_names = {}
-  local switch_functions = {}
+function lua.parseArgs(args)
+  local fileName;
+  local fileVarArgs = {};
+  local optionCalls = {}
 
-  local arg_index = 1
-  while args[arg_index] do
-    local arg = args[arg_index]
-    
-    local is_argument = (arg:sub(1, 1) == "-")
-    if not is_argument then
-      arg_index = arg_index + 1
-      table.insert(file_names, args[arg_index])
+  local argIndex = 1;
+  while args[argIndex] do
+    local currentArg = args[argIndex]
+    if lua.params[currentArg] and not optionCalls[currentArg] then
+      local optionProperties = lua.params[currentArg]
+      local args = optionProperties[1]
+      local consumedArgs = {}
+      for index = argIndex + 1, argIndex + 1 + (#(args or {})) do
+        local newArg = args[index]
+        if not newArg then error() end
+        table.insert(consumedArgs, newArg)
+      end
+      optionCalls[currentArg] = consumedArgs
     else
-      local is_valid_command = false
-      for __, param in ipairs(lua.params) do
-        for _, command in ipairs(param[1]) do
-          local is_matched = (arg == command)
-          if is_matched then
-            is_valid_command = true
-            local switch_name = param[4]
-            if not switch_name then
-              local param_function = param[5]
-              arg_index = arg_index + 1
-              param_function(args[arg_index])
-            elseif switch_name and not lua.option_switches[command] then
-              lua.option_switches[command] = true
-              table.insert(switch_functions, param[5])
-            end
-            break
-          end
-        end
-      end
-
-      if not is_valid_command then
-        lua.print_help()
-      end
+      if not fileName then fileName = currentArg
+      else insert(fileVarArgs, currentArg) end
     end
-    arg_index = arg_index + 1
+
+    argIndex = argIndex + 1
+  end
+  for optionName, arguments in pairs(optionCalls) do
+    lua.params[optionName][3](unpack(arguments))
+  end
+  if fileName then
+    lua.executeFile(fileName, fileVarArgs)
   end
 
-  for _, func in ipairs(switch_functions) do func() end
 end
 
-function lua.execute_string(string)
-  return string
+function lua.executeString(string)
+  local tokens = Lexer:new(string):tokenize()
+  local AST = Parser:new(tokens):parse()
+  return ASTExecutor:new(AST):execute()
 end
 
-function lua.execute_file(filename)
-  
+function lua.executeFile(filename)
+  local file = io.open(filename, "r")
+  local contents = file:read("*a")
+  file:close()
+  return lua.executeString(contents)
 end
 
-lua.params = {
-  {{"-e"}, "stat", "execute string 'stat'",                           nil,                       lua.execute_string},
-  {{"-l"}, "name", "require library 'name'",                          nil,                       lua.include_library},
-  {{"-i"}, "",     "enter interactive mode after executing 'script'", "toggle_interactive_mode", lua.interactive_mode},
-  {{"-v"}, "",     "show version information",                        "print_version",           lua.print_version},
-  {{"--"}, "",     "stop handling options"},
-  {{"-"},  "",     "execute stdin and stop handling options"}
-}
-
-lua.parse_args({...})
+lua.parseArgs({...})

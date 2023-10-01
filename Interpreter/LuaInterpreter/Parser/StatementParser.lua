@@ -16,30 +16,73 @@ local find = table.find or Helpers.TableFind
 --* Statements *--
 local Statements = {}
 
+-- "<variable>(, <variable>)* (= <expression>(, <expression>)*)?" 
+function Statements:__VariableAssignment()
+  local variables = {self:__Field()}
+  while self:compareTokenValueAndType(self.currentToken, "Character", ",") do
+    self:consume()
+    insert(variables, self:__Field())
+  end
+
+  self:expectCurrentTokenAndConsume("Character", "=")
+  
+  return {
+    Expressions = self:consumeMultipleExpressions(),
+    Variables = variables,
+    TYPE = "VariableAssignment"
+  }
+end
+-- "[<identifier>, <vararg>]? [, <identifier>, <vararg>]*" 
+function Statements:__FunctionParameters()
+  local parameters = {}
+  while true do
+    local currentToken = self.currentToken
+    local tokenType = currentToken.TYPE
+    if tokenType == "Identifier" then
+      insert(parameters, currentToken.Value)
+    elseif tokenType == "Constant" and currentToken.Value == "..." then
+      insert(parameters, "...")      
+      -- There's no params after vararg.
+      self:expectNextToken("Character", ")")
+      break
+    elseif tokenType == "Character" and currentToken.Value == ")" then
+      break
+    else
+      -- An unknown token, ok
+      -- Let parent functions deal with that crap
+      break
+    end
+    if not self:compareTokenValueAndType(self:consume(), "Character", ",") then
+      break
+    end
+    self:consume()
+  end 
+
+  return parameters
+end
 -- function(<args>) <code_block> end
 function Statements:consumeFunction()
   self:consume() -- Consume the "function" keyword
   self:expectCurrentToken("Character", "(")
   self:consume() -- Consume "("
-  local arguments = self:consumeMultipleIdentifiers()
+  local parameters = self:__FunctionParameters()
   self:expectCurrentToken("Character", ")")
   self:consume() -- Consume ")"
   local codeBlock = self:consumeCodeBlock({ "end" })
   self:expectCurrentToken("Keyword", "end")
   -- self:consume()
-  return self:createFunctionNode(arguments, codeBlock)
+  return self:createFunctionNode(parameters, codeBlock)
 end
 -- <table>.<index>
 function Statements:consumeTableIndex(currentExpression)
   self:consume() -- Consume the "." symbol
-  local currentToken = self.currentToken --self:expectCurrentToken("Identifier")
-  -- self:consume()
+  local indexToken = self.currentToken
 
-  if currentToken.TYPE == "Identifier" then
-    return self:createIndexNode({ TYPE = "String", Value = currentToken.Value }, currentExpression)
+  if indexToken.TYPE == "Identifier" then
+    indexToken.TYPE = "String"
   end
 
-  return self:createIndexNode(currentToken, currentExpression)
+  return self:createIndexNode(indexToken, currentExpression)
 end
 -- <table>[<expression>]
 function Statements:consumeBracketTableIndex(currentExpression)
@@ -72,7 +115,7 @@ function Statements:consumeMethodCall(currentExpression)
   self:consume() -- Consume the name of the method
 
   local functionCall = self:consumeFunctionCall(self:createIndexNode(functionName.Value, currentExpression))
-  return self:createFunctionCallNode(functionCall.Expression, self:addSelfToArguments(functionCall.Arguments))
+  return self:createFunctionCallNode(functionCall.Expression, self:addSelfToArguments(functionCall.Parameters))
 end
 -- { ( \[<expression>\] = <expression> | <identifier> = <expression> | <expression> ) ( , )? }*
 function Statements:consumeTable()
@@ -161,22 +204,6 @@ function Statements:__Field()
   
   return identifier
 end
--- "<variable>(, <variable>)* (= <expression>(, <expression>)*)?" 
-function Statements:__VariableAssignment()
-  local variables = {self:__Field()}
-  while self:compareTokenValueAndType(self.currentToken, "Character", ",") do
-    self:consume()
-    insert(variables, self:__Field())
-  end
-
-  self:expectCurrentTokenAndConsume("Character", "=")
-  
-  return {
-    Expressions = self:consumeMultipleExpressions(),
-    Variables = variables,
-    TYPE = "VariableAssignment"
-  }
-end
 -- "local <identifier>(, <identifier>)* (= <expression>(, <expression>)*)?" |
 -- "local function <identifier>(<args>) <code_block> end"
 function Statements:_local()
@@ -186,13 +213,13 @@ function Statements:_local()
     local functionName = self:expectCurrentToken("Identifier").Value
     self:consume()
     self:expectCurrentTokenAndConsume("Character", "(")
-    local arguments = self:identifiersToValues(self:consumeMultipleIdentifiers())
+    local parameters = self:__FunctionParameters()
     self:expectCurrentTokenAndConsume("Character", ")")
     local codeBlock = self:consumeCodeBlock({"end"})
     return {
       TYPE = "LocalFunction",
       Name = functionName,
-      Arguments = arguments,
+      Parameters = parameters,
       CodeBlock = codeBlock
     }
   end
@@ -312,7 +339,7 @@ function Statements:_function(isLocal)
     self:expectCurrentToken("Identifier").Value
   }
   self:consume() -- Consume the first required field
-  local arguments = {};
+  local parameters = {};
 
   local currentToken = self.currentToken
   while self:compareTokenValueAndType(currentToken, "Character", ".") or (not isLocal and self:compareTokenValueAndType(currentToken, "Character", ":")) do
@@ -322,22 +349,20 @@ function Statements:_function(isLocal)
     insert(fields, identifier.Value)
     currentToken = self:consume()
     if self:compareTokenValueAndType(previousToken, "Character", ":") then
-      insert(arguments, "self")
+      insert(parameters, "self")
       break
     end
   end
 
   self:expectCurrentTokenAndConsume("Character", "(")
-  for _, identifier in pairs(self:consumeMultipleIdentifiers()) do
-    insert(arguments, identifier.Value)
-  end
+  parameters = self:__FunctionParameters() 
   self:expectCurrentTokenAndConsume("Character", ")")
   local codeBlock = self:consumeCodeBlock({"end"})
   
   return {
     TYPE = "Function",
     Fields = fields,
-    Arguments = arguments,
+    Parameters = parameters,
     CodeBlock = codeBlock
   }
 end

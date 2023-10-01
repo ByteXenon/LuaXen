@@ -35,11 +35,13 @@ function Parser:new(tokens)
   end
 
   function ParserInstance:peek(n)
-    return self.tokens[self.currentTokenIndex + (n or 1)]
+    -- Place "EOF" just in case so the script wouldn't error on an 
+    -- unexpected end of tokens, instead it will output the native error function
+    return self.tokens[self.currentTokenIndex + (n or 1)]  or { TYPE = "EOF" }
   end
   function ParserInstance:consume(n)
     self.currentTokenIndex = self.currentTokenIndex + (n or 1)
-    self.currentToken = self.tokens[self.currentTokenIndex]
+    self.currentToken = self.tokens[self.currentTokenIndex] or { TYPE = "EOF" }
     return self.currentToken
   end
 
@@ -97,11 +99,11 @@ function Parser:new(tokens)
   end
 
   
-  function ParserInstance:createOperatorNode(operatorValue, leftExpr, rightExpr)
-    return { TYPE = "Operator", Value = operatorValue, Left = leftExpr, Right = rightExpr }
+  function ParserInstance:createOperatorNode(operatorValue, leftExpr, rightExpr, precedence)
+    return { TYPE = "Operator", Value = operatorValue, Left = leftExpr, Right = rightExpr, Precedence = precedence }
   end
-  function ParserInstance:createUnaryOperatorNode(operatorValue, operand)
-    return { TYPE = "UnaryOperator", Value = operatorValue, Operand = operand }
+  function ParserInstance:createUnaryOperatorNode(operatorValue, operand, precedence)
+    return { TYPE = "UnaryOperator", Value = operatorValue, Operand = operand, Precedence = precedence }
   end
   function ParserInstance:createFunctionCallNode(expression, parameters)
     return { TYPE = "FunctionCall", Expression = expression, Parameters = parameters }
@@ -121,8 +123,8 @@ function Parser:new(tokens)
   function ParserInstance:createTableElementNode(key, value)
     return { TYPE = "TableElement", Key = key, Value = value }
   end
-  function ParserInstance:createFunctionNode(arguments, codeBlock, fields)
-    return { TYPE = "Function", Arguments = arguments, CodeBlock = codeBlock, Fields = fields }
+  function ParserInstance:createFunctionNode(parameters, codeBlock, fields)
+    return { TYPE = "Function", Parameters = parameters, CodeBlock = codeBlock, Fields = fields }
   end
 
   function ParserInstance:identifiersToValues(identifiers)
@@ -190,7 +192,7 @@ function Parser:new(tokens)
         error("Unsupported keyword on Lua Parser side: " .. value)
       end
       returnValue = keywordFunction(self)
-    elseif type == "Identifier" and self:tokenIsOneOf(self:peek(), {{"Character", ","}, {"Character", "="}}) then
+    elseif type == "Identifier" and self:tokenIsOneOf(self:peek(), {{"Character", "."}, {"Character", ","}, {"Character", "="}}) then
       return self:__VariableAssignment()
     elseif type == "EOF" then
       return STOP_PARSING_VALUE

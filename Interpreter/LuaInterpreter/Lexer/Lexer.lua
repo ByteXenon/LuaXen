@@ -45,6 +45,7 @@ function Lexer:new(string)
   LexerInstance.charStream = StringToTable(string)
   LexerInstance.curCharPos = 1
   LexerInstance.curChar = LexerInstance.charStream[1]
+  LexerInstance.tokens = {}
   LexerInstance.reservedKeywords = {
     "while", "do", "end", "for", 
     "local", "repeat", "until", "return", 
@@ -249,22 +250,26 @@ function Lexer:new(string)
       return
     elseif self:isDigit() then
       local newNumber = self:consumeDigit() 
-      return self:newToken("Number", tonumber(newNumber))
+      insert(self.tokens, self:newToken("Number", tonumber(newNumber)))
     elseif self:isIdentifier() then
       local newIdentifier = self:consumeIdentifier()
       if find(self.constants, newIdentifier) then
         local constantValue;
-        if newIdentifier == "nil" then
-        else
+        if newIdentifier == "..." then
+          constantValue = "..."
+        elseif newIdentifier ~= "nil" then
           constantValue = newIdentifier == "true"
         end
-        return self:newToken("Constant", constantValue)
+        
+        insert(self.tokens, self:newToken("Constant", constantValue))
       elseif find(self.operators, newIdentifier) then
-        return self:newToken("Operator", newIdentifier)
+        insert(self.tokens, self:newToken("Operator", newIdentifier))
       elseif find(self.reservedKeywords, newIdentifier) then
-        return self:newToken("Keyword", newIdentifier)
+        insert(self.tokens, self:newToken("Keyword", newIdentifier))
+      else
+        insert(self.tokens, self:newToken("Identifier", newIdentifier))
       end
-      return self:newToken("Identifier", newIdentifier)
+      return
     elseif self:isString() then
       local newString = self:consumeString()
       return self:newToken("String", newString)
@@ -286,7 +291,8 @@ function Lexer:new(string)
       if nextToken then insert(tokens, nextToken) end
       self:consume()
     end
-    insert(tokens, self:newToken("EOF"))
+    -- is not needed anymore
+    -- insert(tokens, self:newToken("EOF"))
 
     return tokens
   end;

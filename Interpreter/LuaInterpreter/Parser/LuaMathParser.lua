@@ -35,9 +35,19 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
     }
   }, startIndex)
 
+  function PatchedMathParser:getCurrentToken()
+    return self.tokens[self.currentTokenIndex] or { TYPE = "EOF" }
+  end;
+  function PatchedMathParser:peek()
+    return self.tokens[self.currentTokenIndex + 1] or { TYPE = "EOF" }
+  end;
+  function PatchedMathParser:consumeToken()
+    self.currentTokenIndex = self.currentTokenIndex + 1
+  end;
+
   function PatchedMathParser:syncLuaParser()
     luaParser.currentTokenIndex = self.currentTokenIndex -- ((self.unexpectedEnd and 1) or -1)
-    luaParser.currentToken = luaParser.tokens[luaParser.currentTokenIndex]
+    luaParser.currentToken = luaParser.tokens[luaParser.currentTokenIndex] or { TYPE = "EOF" }
   end
   function PatchedMathParser:syncMathParser()
     self.tokens = luaParser.tokens -- Just in case 
@@ -73,7 +83,7 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
         if precedence <= minPrecedence then break end
         self:consumeToken()
         local right = self:parseBinaryOperator(precedence)
-        left = luaParser:createOperatorNode(token.Value, left, right)
+        left = luaParser:createOperatorNode(token.Value, left, right, precedence)
       elseif not precedence then
         
         self:syncLuaParser()
@@ -100,7 +110,7 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
       if self.operatorPrecedences.unary[value] then
         self:consumeToken()
         local operand = self:parseUnaryOperator()
-        return luaParser:createUnaryOperatorNode(token.Value, operand)
+        return luaParser:createUnaryOperatorNode(token.Value, operand, precedence)
       end
     elseif TYPE == "Character" and (value == "(" or value == ")") then
       if value == "(" then
@@ -148,6 +158,7 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
     local expression = self:parseExpression()
     luaParser.currentTokenIndex = self.currentTokenIndex - ((self.unexpectedEnd and 1) or 0)
     luaParser.currentToken = luaParser.tokens[luaParser.currentTokenIndex]
+    
     return expression
   end;
 

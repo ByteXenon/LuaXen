@@ -23,6 +23,7 @@
 /Interpreter/*.lua
 /Optimizer/legacy*
 /Parser
+*__legacy_*
 
 # Super private (I store my thesis there)
 *Private*

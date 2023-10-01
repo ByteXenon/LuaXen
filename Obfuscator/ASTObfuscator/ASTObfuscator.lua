@@ -33,10 +33,47 @@ function ASTObfuscator:new(ast)
 
     return str
   end
+  function ASTObfuscatorInstance:processOperator(node)
+    --[[
+      Operator1 \ Operator2 	+ 	- 	* 	/ 	^
+      + 	y(x) = x - C 	y(x) = x + C 	y(x) = C / x 	y(x) = C * x 	y(x) = log_{x + C}(C)
+      - 	y(x) = x + C 	y(x) = x - C 	y(x) = -C / x 	y(x) = -C * x 	y(x) = log_{x - C}(C)
+      * 	y(x) = C / x 	y(x) = -C / x 	y(x) = sqrt[C]{x} 	y(x) = x ^ 2 / C 	y(x) = 1/C
+      / 	y(x) = C * x 	y(x) = -C * x 	y(x) = x ^ 2 / C 	y(x) = sqrt[C]{x} 	y(x) = 1/C
+      ^ 	y(x) = log_{x}(C) 	y(x) = log_{-x}(C) 	y(x) = log_{sqrt[C]{x}}(C) 	y(x) = log_{x ^ 2 / C}(C) 	y(x)=log_{x^C}(C)
+    ]]
+    local randomNum = math.random(1, 9999)
+    local newNode = {
+      TYPE = "Operator",
+      Value = "/",
+      Right = {
+        TYPE = "Operator",
+        Value = "*",
+        Left = node,
+        Right = {
+          TYPE = "Number",
+          Value = randomNum
+        }
+      },
+      Left = {
+        Value = "+",
+        TYPE = "Operator",
+        Left = {
+          TYPE = "Number",
+          Value = randomNum
+        },
+        Right = node 
+      }
+    }
+    return newNode
+  end
   function ASTObfuscatorInstance:processNode(node)
     local nodeType = node.TYPE
+    node.Expressions = node.Expressions and self:processNodeList(node.Expressions)
+    node.Expression = node.Expression and self:processNode(node.Expression)
+    node.CodeBlock = node.CodeBlock and self:processNodeList(node.CodeBlock)
+
     if nodeType == "LocalVariable" then
-      node.Expressions = self:processNodeList(node.Expressions)
       for index, variable in ipairs(node.Variables) do
         local oldVariableName = variable.Value
         local newVariableName = self:generateVariableName()
@@ -48,28 +85,13 @@ function ASTObfuscator:new(ast)
       local newLocalName = self.renamedLocals[value]
       if newLocalName then node.Value = newLocalName end
     elseif nodeType == "Operator" then
-      node.Left = self:processNode(node.Left)
-      node.Right = self:processNode(node.Right)
+      node = self:processOperator(node)
+      --node.Left = self:processNode(node.Left)
+      --node.Right = self:processNode(node.Right)
     elseif nodeType == "UnaryOperator" then
       node.Operand = self:processNode(node.Operand)
     elseif nodeType == "FunctionCall" then
       node.Parameters = self:processNodeList(node.Parameters)
-      node.Expression = self:processNode(node.Expression)
-    elseif nodeType == "Function" then
-      node.CodeBlock = self:processNodeList(node.CodeBlock)
-    elseif nodeType == "Do" then
-      node.CodeBlock = self:processNodeList(node.CodeBlock)
-    elseif nodeType == "WhileLoop" then
-      node.CodeBlock = self:processNodeList(node.CodeBlock)
-      node.Expression = self:processNodeList(node.Expression)
-    elseif nodeType == "Return" then
-      node.Expressions = self:processNodeList(node.Expressions)
-    elseif nodeType == "GenericFor" then
-      node.CodeBlock = self:processNodeList(node.CodeBlock)
-      node.Expression = self:processNode(node.Expression)
-    elseif nodeType == "NumericFor" then
-      node.CodeBlock = self:processNodeList(node.CodeBlock)
-      node.Expressions = self:processNodeList(node.Expressions)
     end
 
     return node
