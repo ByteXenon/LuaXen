@@ -1,7 +1,7 @@
 --[[
   Name: Parser.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-09-XX
+  Date: 2023-10-XX
   All Rights Reserved.
 --]]
 
@@ -10,6 +10,7 @@ local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Interprete
 local Helpers = ModuleManager:loadModule("Helpers/Helpers")
 
 local StatementParser = ModuleManager:loadModule("Interpreter/LuaInterpreter/Parser/StatementParser")
+local NodeFactory = ModuleManager:loadModule("Interpreter/LuaInterpreter/Parser/NodeFactory")
 local LuaMathParser = ModuleManager:loadModule("Interpreter/LuaInterpreter/Parser/LuaMathParser")
 local Debugger = ModuleManager:loadModule("Debugger/Debugger")
 
@@ -28,7 +29,7 @@ function Parser:new(tokens)
   ParserInstance.currentToken = tokens[1]
   ParserInstance.currentTokenIndex = 1
 
-  for _, tb in ipairs({StatementParser}) do
+  for _, tb in ipairs({StatementParser, NodeFactory}) do
     for index, func in pairs(tb) do
       ParserInstance[index] = func
     end
@@ -44,11 +45,9 @@ function Parser:new(tokens)
     self.currentToken = self.tokens[self.currentTokenIndex] or { TYPE = "EOF" }
     return self.currentToken
   end
-
   function ParserInstance:compareTokenValueAndType(token, type, value)
     return token and (not type or type == token.TYPE) and (not value or value == token.Value)
   end
-
   function ParserInstance:tokenIsOneOf(token, tokenPairs)
     local token = token or self.currentToken
     for _, pair in ipairs(tokenPairs) do
@@ -56,11 +55,9 @@ function Parser:new(tokens)
     end
     return false
   end 
-
   function ParserInstance:isClosingParenthesis(token)
     return token.TYPE == "Character" and token.Value == ")"
   end
-
   function ParserInstance:expectCurrentToken(tokenType, tokenValue)
     local currentToken = self.currentToken
     if self:compareTokenValueAndType(currentToken, tokenType, tokenValue) then
@@ -75,7 +72,6 @@ function Parser:new(tokens)
     self:consume()
     return self:expectCurrentToken(tokenType, tokenValue)
   end
-
   function ParserInstance:expectCurrentTokenAndConsume(tokenType, tokenValue)
     self:expectCurrentToken(tokenType, tokenValue)
     return self:consume()
@@ -84,49 +80,17 @@ function Parser:new(tokens)
     self:expectNextToken(tokenType, tokenValue)
     return self:consume()
   end 
-  
   function ParserInstance:isTable()
     local token = self.currentToken
     return token and token.TYPE == "Character" and token.TYPE == "{"
   end;
-
   function ParserInstance:addSelfToArguments(arguments)
-    local newArguments = { { TYPE = "Identifier", Value = "self" } }
+    local newArguments = { self:createIdentifierNode("self") }
     for index, value in ipairs(arguments) do
       newArguments[index + 1] = value
     end
     return newArguments
   end
-
-  
-  function ParserInstance:createOperatorNode(operatorValue, leftExpr, rightExpr, precedence)
-    return { TYPE = "Operator", Value = operatorValue, Left = leftExpr, Right = rightExpr, Precedence = precedence }
-  end
-  function ParserInstance:createUnaryOperatorNode(operatorValue, operand, precedence)
-    return { TYPE = "UnaryOperator", Value = operatorValue, Operand = operand, Precedence = precedence }
-  end
-  function ParserInstance:createFunctionCallNode(expression, parameters)
-    return { TYPE = "FunctionCall", Expression = expression, Parameters = parameters }
-  end
-  function ParserInstance:createIdentifierNode(value)
-    return { TYPE = "Identifier", Value = value }
-  end
-  function ParserInstance:createNumberNode(value)
-    return { TYPE = "Number", Value = value }
-  end
-  function ParserInstance:createIndexNode(index, expression)
-    return { TYPE = "Index", Index = index, Expression = expression }
-  end
-  function ParserInstance:createTableNode(elements)
-    return { TYPE = "Table", Elements = elements }
-  end
-  function ParserInstance:createTableElementNode(key, value)
-    return { TYPE = "TableElement", Key = key, Value = value }
-  end
-  function ParserInstance:createFunctionNode(parameters, codeBlock, fields)
-    return { TYPE = "Function", Parameters = parameters, CodeBlock = codeBlock, Fields = fields }
-  end
-
   function ParserInstance:identifiersToValues(identifiers)
     local values = {}
     for _, identifierNode in ipairs(identifiers) do
@@ -147,14 +111,9 @@ function Parser:new(tokens)
         if maxAmount and #expressions >= maxAmount then break end
         self:consume() -- Consume the last token of the last expression
         self:consume() -- Consume ","
-        --print("------------------")
         insert(expressions, self:consumeExpression(false))
-        --Helpers.PrintTable(expressions)
-        --Helpers.PrintTable(self.currentToken)
-        --print("------------------")
       end
     end
-    -- self:consume()
     
     return expressions
   end
@@ -173,11 +132,22 @@ function Parser:new(tokens)
     
     return identifiers
   end
-  function ParserInstance:isValidCodeBlockExpression(expression)
-    return expression["TYPE"] == "FunctionCall" 
+  function ParserInstance:areValidCodeBlockExpressions(expressions)
+    if not expressions then return end
+    if not expressions[1] then return end
+    if #expressions == 1 then
+      if expressions[1].TYPE == "FunctionCall" then return true
+      elseif expressions[1].TYPE == "MethodCall" then return true end
+    end
+
+    for _, value in ipairs(expressions) do
+      if value.TYPE == "Identifier" or value.TYPE == "Index" then
+      else return false end
+    end
+    return true 
   end
 
-  function ParserInstance:getNextAST(stopKeywords)
+  function ParserInstance:getNextNode(stopKeywords)
     local currentToken = self.currentToken
     local value, type = currentToken.Value, currentToken.TYPE
     
@@ -192,18 +162,20 @@ function Parser:new(tokens)
         error("Unsupported keyword on Lua Parser side: " .. value)
       end
       returnValue = keywordFunction(self)
-    elseif type == "Identifier" and self:tokenIsOneOf(self:peek(), {{"Character", "."}, {"Character", ","}, {"Character", "="}}) then
-      return self:__VariableAssignment()
     elseif type == "EOF" then
       return STOP_PARSING_VALUE
     else
-      local codeBlockExpression = self:consumeExpression()
-      
-      if not self:isValidCodeBlockExpression(codeBlockExpression) then
-        return error(("Unexpected token: %s (Perhaps you forgot to place a ';' there?)"):format(stringifyTable(codeBlockExpression)))
+      local codeBlockExpressions = self:consumeMultipleExpressions()
+      if not self:areValidCodeBlockExpressions(codeBlockExpressions) then
+        return error(("Unexpected node: %s (Perhaps you forgot to place a ';' there?)"):format(stringifyTable(codeBlockExpressions)))
       end
-      returnValue = codeBlockExpression
-      -- self:consume()
+
+      if codeBlockExpressions[1].TYPE == "FunctionCall" or codeBlockExpressions[1].TYPE == "MethodCall" then
+        returnValue = codeBlockExpressions[1]
+      else
+        self:consume() -- Consume the last variable token
+        returnValue = self:__VariableAssignment(codeBlockExpressions)
+      end
     end
 
     -- Consume an optional semicolon
@@ -215,10 +187,10 @@ function Parser:new(tokens)
   function ParserInstance:consumeCodeBlock(stopKeywords)
     local ast = {}
     while self.currentToken do
-      local newAST = self:getNextAST(stopKeywords)
+      local newAST = self:getNextNode(stopKeywords)
       if not newAST then error(("Unexpected token: %s"):format(stringifyTable(currentToken)))
       elseif newAST == STOP_PARSING_VALUE then break end
-      
+
       insert(ast, newAST)
       self:consume()
     end
@@ -226,10 +198,9 @@ function Parser:new(tokens)
   end
   function ParserInstance:parse()
     local returnValue = self:consumeCodeBlock()
-    
     return returnValue
   end
-  
+
   return ParserInstance
 end
 

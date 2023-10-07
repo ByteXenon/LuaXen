@@ -24,73 +24,62 @@ function AbstractDomain:new(luaState)
   local Protos = luaState.protos or {}
   local VarArg = luaState.vararg or {}
 
-  -- OP_MOVE [A, B]    R(A) := R(B)
-  -- Copy a value between registers
+  local range;
+  local function range(a, b, ...)
+    if not a or not b then return end
+    local tb = { unpack(range(...)) }
+    for i = a, b do insert(tb, i) end
+    return tb
+  end;
+
+  -- Constant 
+  local RK;
+  local function RK(tb, isRegister)
+    local newTb = {}
+    for _, value in ipairs(tb) do
+      if not isRegister and Constants[value] then
+        insert(newTb, value)
+      else
+        insert(newTb, value)
+      end
+    end
+
+    return newTb
+  end
+
   function InstructionFunctionalityObject.MOVE(A, B)
     return { Registers_Changed = {A}, Register_Used = {B} }
   end;
-
-  -- OP_LOADK [A, Bx]    R(A) := Kst(Bx)
-  -- Load a constant into a register
   function InstructionFunctionalityObject.LOADK(A, B)
     return { Registers_Changed = {A}, Constants_Used = {B} }
   end;
-
-  -- OP_LOADBOOL [A, B, C]    R(A) := (Bool)B; if (C) pc++
-  -- Load a boolean into a register
   function InstructionFunctionalityObject.LOADBOOL(A, B, C)
-    if C and C ~= 0 then
-      return { Registers_Changed = {A}, Jump = 1}
-    end
-    return   { Registers_Changed = {A} }
+    if C ~= 0 then return { Registers_Changed = {A}, Jump = 1}
+    else return { Registers_Changed = {A} } end
   end;
-
-  -- OP_LOADNIL [A, B]    R(A) := ... := R(B) := nil
-  -- Load nil values into a range of registers
   function InstructionFunctionalityObject.LOADNIL(A, B)
-    local changedRegisters = {}
-    for Index = A, B do
-      insert(changedRegisters, Index)
-    end
-    return { Registers_Changed = changedRegisters }
+    return { Registers_Changed = range(A, B) }
   end;
-
-  -- OP_GETUPVAL [A, B]    R(A) := UpValue[B]
-  -- Read an upvalue into a register
   function InstructionFunctionalityObject.GETUPVAL(A, B)
     return { Registers_Changed = {A}, Upvalues_Used = {B} }
   end;
-
-  -- OP_GETGLOBAL [A, Bx]    R(A) := Gbl[Kst(Bx)]
-  -- Load a global into a register
   function InstructionFunctionalityObject.GETGLOBAL(A, B)
     return { Registers_Changed = {A}, Constants_Used = {B} }
   end;
-
-  -- OP_GETTABLE [A, B, C]    R(A) := R(B)[RK(C)]
-  -- Read a table element into a register
   function InstructionFunctionalityObject.GETTABLE(A, B, C)
     if Constants[C] then
       return { Registers_Changed = {A}, Registers_Used = {B}, Constants_Used = {C} }
     end
     return { Registers_Changed = {A}, Registers_Used = {B, C} }
   end;
-
-  -- OP_SETGLOBAL [A, Bx]    Gbl[Kst(Bx)] := R(A)
-  -- Write a register value into a global
   function InstructionFunctionalityObject.SETGLOBAL(A, Bx)
     return { Registers_Used = {Bx}, Constants_Used = {A}, NoReplace = true }
   end;
-
-  -- OP_SETUPVAL [A, B]    UpValue[B] := R(A)
-  -- Write a register value into an upvalue
   function InstructionFunctionalityObject.SETUPVAL(A, B)
-    Upvalues[A] = Register[B]
+    return { Upvalues_Changed = {B}, Registers_Used = {A} }
   end;
-
-  -- OP_SETTABLE [A, B, C]    R(A)[RK(B)] := RK(C)
-  -- Write a register value into a table element
   function InstructionFunctionalityObject.SETTABLE(A, B, C)
+    return { Registers_Used = {A} }
     Register[A][Constants[B] or Register[B]] = (Constants[C] or Register[C])
   end;
 

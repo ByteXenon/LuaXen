@@ -1,7 +1,7 @@
 --[[
   Name: Minifier.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-09-XX
+  Date: 2023-10-XX
   All Rights Reserved.
 --]]
 
@@ -18,15 +18,6 @@ local find = table.find or Helpers.TableFind
 local concat = table.concat
 local insert = table.insert
 local rep = string.rep
-
-local function stringFormat(str, formatTb)
-  str = str:gsub("{([\1-\124\126-\255]+)}", function(formatValue)
-    local foundFormatValue = formatTb[formatValue]
-    if foundFormatValue then return foundFormatValue end
-    return "" -- formatValue
-  end)
-  return str
-end
 
 --* Minifier *--
 local Minifier = {}
@@ -45,18 +36,21 @@ function Minifier:new(tokens)
     return self.currentToken
   end
 
-
   function MinifierInstance:isKeywordOrIdentifierOrNumber(token)
     local tokenType = token and token.TYPE
-    return tokenType == "Identifier" or tokenType == "Keyword" or tokenType == "Number"
+    return self:isIdentifier(token) or tokenType == "Keyword" or tokenType == "Number"
   end
   function MinifierInstance:isIdentifierOrNumber(token)
     local tokenType = token and token.TYPE
-    return tokenType == "Identifier" or tokenType == "Number"
+    return self:isIdentifier(token) or tokenType == "Number"
   end
   function MinifierInstance:isIdentifier(token)
     local tokenType = token and token.TYPE
-    return tokenType == "Identifier"
+    local tokenValue = token and token.Value
+    local identifierOperators = {"and", "or", "not"}
+
+    return tokenType == "Identifier" or (tokenType == "Constant" and tokenValue ~= "...") or
+          ((tokenType == "Operator" or tokenType == "UnaryOperator") and find(identifierOperators, tokenValue))
   end
   function MinifierInstance:isKeyword(token)
     local tokenType = token and token.TYPE
@@ -72,8 +66,12 @@ function Minifier:new(tokens)
       tokenValue = ((self:isKeywordOrIdentifierOrNumber(self:peek(-1)) and " ") or "") .. tokenValue
     elseif tokenType == "Number" then
       tokenValue = ((self:isKeywordOrIdentifierOrNumber(self:peek(-1)) and " ") or "") .. tokenValue
+    elseif tokenType == "Operator" and self:isIdentifier(token) then
+      tokenValue = ((self:isKeywordOrIdentifierOrNumber(self:peek(-1)) and " ") or "") .. tokenValue
     elseif tokenType == "String" then
       tokenValue = "'" .. tokenValue .. "'"
+    elseif tokenType == "Constant" then
+      tokenValue = ((self:isKeywordOrIdentifierOrNumber(self:peek(-1)) and " ") or "") .. tokenValue
     end
     return tokenValue
   end

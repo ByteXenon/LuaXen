@@ -46,6 +46,7 @@ function Lexer:new(string)
   LexerInstance.curCharPos = 1
   LexerInstance.curChar = LexerInstance.charStream[1]
   LexerInstance.tokens = {}
+  LexerInstance.comments = {}
   LexerInstance.reservedKeywords = {
     "while", "do", "end", "for", 
     "local", "repeat", "until", "return", 
@@ -125,7 +126,7 @@ function Lexer:new(string)
     end
     error(("Error: Expected one of characters: {%s}, got: %s"):format(concat(expectedChars, ", "), curChar))
   end;
-  function LexerInstance:readWhileNotString(targetString)
+  function LexerInstance:readWhileNotString(targetString, allowUnexpectedEnd)
     local stringTb = StringToTable(targetString)
     local stringLen = #targetString
     local matchedIndex = 1;
@@ -134,6 +135,9 @@ function Lexer:new(string)
     while matchedIndex <= stringLen do
       local curChar = self.curChar
       if curChar == "\0" then
+        if allowUnexpectedEnd then
+          return concat(returnString):sub(0, -matchedIndex)
+        end
         return error("Unexpected end")
       elseif stringTb[matchedIndex] == curChar then
         matchedIndex = matchedIndex + 1
@@ -233,7 +237,7 @@ function Lexer:new(string)
     if curChar == '[' and (nextChar == '[' or nextChar == "=") then
       return self:consumeString()
     else
-      return self:readWhileNotString("\n")
+      return self:readWhileNotString("\n", true)
     end;
   end;
 
@@ -246,11 +250,13 @@ function Lexer:new(string)
       self:consumeWhitespace()
       return
     elseif self:isComment() then
-      self:consumeComment()
-      return
+      return insert(self.comments, {
+        Position = #self.tokens,
+        Value = self:consumeComment()
+      })
     elseif self:isDigit() then
       local newNumber = self:consumeDigit() 
-      insert(self.tokens, self:newToken("Number", tonumber(newNumber)))
+      return insert(self.tokens, self:newToken("Number", tonumber(newNumber)))
     elseif self:isIdentifier() then
       local newIdentifier = self:consumeIdentifier()
       if find(self.constants, newIdentifier) then
@@ -272,29 +278,25 @@ function Lexer:new(string)
       return
     elseif self:isString() then
       local newString = self:consumeString()
-      return self:newToken("String", newString)
+      return insert(self.tokens, self:newToken("String", newString))
     end
 
     -- Check if this is a constant or an operator
     local constant = self:consumeConstant()
-    if constant then return self:newToken("Constant", constant) end
+    if constant then return insert(self.tokens, self:newToken("Constant", constant)) end
     local operator = self:consumeOperator()
-    if operator then return self:newToken("Operator", operator) end
+    if operator then return insert(self.tokens, self:newToken("Operator", operator)) end
 
-    return self:newToken("Character", curChar)
+    return insert(self.tokens, self:newToken("Character", curChar))
   end
 
   function LexerInstance:tokenize()
-    local tokens = {}
     while self.curChar ~= "\0" do
       local nextToken = self:getNextToken()
-      if nextToken then insert(tokens, nextToken) end
       self:consume()
     end
-    -- is not needed anymore
-    -- insert(tokens, self:newToken("EOF"))
 
-    return tokens
+    return self.tokens
   end;
 
   return LexerInstance

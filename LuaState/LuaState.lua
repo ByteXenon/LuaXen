@@ -1,7 +1,7 @@
 --[[
   Name: LuaState.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-09-XX
+  Date: 2023-10-XX
   All Rights Reserved.
 --]]
 
@@ -16,7 +16,7 @@ local defaultEnvironment = getfenv()
 
 -- * LuaState * --
 local LuaState = {}
-function LuaState.new(self, instructions, constants, upvalues, env, register, protos, vararg)
+function LuaState:new(instructions, constants, upvalues, env, register, protos, vararg)
   local LuaStateObject = {}
 
   LuaStateObject.instructions = instructions or {}
@@ -38,7 +38,7 @@ function LuaState.new(self, instructions, constants, upvalues, env, register, pr
     print("Protos:")
     for i,v in pairs(self.protos) do v:printState() end
   end
-
+  
   return LuaStateObject
 end
 

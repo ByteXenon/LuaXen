@@ -19,7 +19,7 @@ local concat = table.concat
 local Decompiler;
 function Decompiler:new(state)
   local DecompilerInstance = {};
-
+  
 end
 
 return Decompiler

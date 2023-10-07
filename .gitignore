@@ -5,6 +5,7 @@
 *.out
 *.log
 *.tmp
+*_logs*
 /*test*.lua
 
 # Ignore those directories, they're not ready yet.

@@ -42,29 +42,6 @@ function ASTObfuscator:new(ast)
       / 	y(x) = C * x 	y(x) = -C * x 	y(x) = x ^ 2 / C 	y(x) = sqrt[C]{x} 	y(x) = 1/C
       ^ 	y(x) = log_{x}(C) 	y(x) = log_{-x}(C) 	y(x) = log_{sqrt[C]{x}}(C) 	y(x) = log_{x ^ 2 / C}(C) 	y(x)=log_{x^C}(C)
     ]]
-    local randomNum = math.random(1, 9999)
-    local newNode = {
-      TYPE = "Operator",
-      Value = "/",
-      Right = {
-        TYPE = "Operator",
-        Value = "*",
-        Left = node,
-        Right = {
-          TYPE = "Number",
-          Value = randomNum
-        }
-      },
-      Left = {
-        Value = "+",
-        TYPE = "Operator",
-        Left = {
-          TYPE = "Number",
-          Value = randomNum
-        },
-        Right = node 
-      }
-    }
     return newNode
   end
   function ASTObfuscatorInstance:processNode(node)

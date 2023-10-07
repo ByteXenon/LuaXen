@@ -24,6 +24,7 @@ print(a)
 
 
 local tokens = Lexer:new(code):tokenize()
+Helpers.PrintTable(tokens)
 local AST = Parser:new(tokens):parse()
 --local obfuscatedAST = ASTObfuscator:new(AST):run() 
 --print(Beautifier:new(AST):run())

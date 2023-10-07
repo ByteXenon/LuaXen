@@ -1,7 +1,7 @@
 --[[
   Name: lua.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-09-XX
+  Date: 2023-10-XX
   All Rights Reserved.
 --]]
 
@@ -11,6 +11,7 @@ local ModuleManager = require("ModuleManager/ModuleManager"):newFile("lua")
 local Helpers = ModuleManager:loadModule("Helpers/Helpers")
 local Lexer = ModuleManager:loadModule("Interpreter/LuaInterpreter/Lexer/Lexer")
 local Parser = ModuleManager:loadModule("Interpreter/LuaInterpreter/Parser/Parser")
+local LuaState = ModuleManager:loadModule("LuaState/LuaState")
 local InstructionGenerator = ModuleManager:loadModule("Interpreter/LuaInterpreter/InstructionGenerator/InstructionGenerator")
 local ASTToTokensConverter = ModuleManager:loadModule("Interpreter/LuaInterpreter/ASTToTokensConverter/ASTToTokensConverter")
 local VirtualMachine = ModuleManager:loadModule("VirtualMachine/VirtualMachine")
@@ -18,7 +19,7 @@ local Beautifier = ModuleManager:loadModule("Beautifier/Beautifier")
 local Minifier = ModuleManager:loadModule("Minifier/Minifier")
 local ASTExecutor = ModuleManager:loadModule("ASTExecutor/ASTExecutor")
 local ASTObfuscator = ModuleManager:loadModule("Obfuscator/ASTObfuscator/ASTObfuscator")
-
+local ASTHierarchy = ModuleManager:loadModule("ASTHierarchy/ASTHierarchy")
 
 local lua = {
   optionSwitches = {},
@@ -29,8 +30,8 @@ local lua = {
 lua.params = {
   ["-e"] = {{"stat"}, "execute string 'stat'",                            lua.executeString},
   ["-l"] = {{"name"}, "require library 'name'",                           lua.includeLibrary},
-  ["-i"] = {nil,     "enter interactive mode after executing 'script'", lua.interactiveMode},
-  ["-v"] = {nil,     "show version information",                        lua.printVersion},
+  ["-i"] = {nil,     "enter interactive mode after executing 'script'",   lua.interactiveMode},
+  ["-v"] = {nil,     "show version information",                          lua.printVersion},
   ["--"] = {nil,     "stop handling options"},
   ["-"] =  {nil,     "execute stdin and stop handling options"}
 }
@@ -46,7 +47,7 @@ function lua.printHelp()
 
   print("usage: lua [options] [script [args]].")
   print("Available options are:")
-  Helpers.PrintAligned(Lines)
+  Helpers.PrintAligned(lines)
 end
 
 function lua.printVersion()
@@ -65,9 +66,12 @@ function lua.parseArgs(args)
   local argIndex = 1;
   while args[argIndex] do
     local currentArg = args[argIndex]
+    if currentArg == "-h" or currentArg == "--help" then
+      return lua.printHelp()
+    end
     if lua.params[currentArg] and not optionCalls[currentArg] then
       local optionProperties = lua.params[currentArg]
-      local args = optionProperties[1]
+      local args = optionProperties[1] or {}
       local consumedArgs = {}
       for index = argIndex + 1, argIndex + 1 + (#(args or {})) do
         local newArg = args[index]
@@ -91,17 +95,21 @@ function lua.parseArgs(args)
 
 end
 
-function lua.executeString(string)
+function lua.executeString(string, varArgs)
+  local newState = LuaState:new()
+  newState.varArg = varArgs
+  
   local tokens = Lexer:new(string):tokenize()
   local AST = Parser:new(tokens):parse()
-  return ASTExecutor:new(AST):execute()
+  Helpers.PrintTable(AST)
+  --return ASTExecutor:new(AST, newState):execute()
 end
 
-function lua.executeFile(filename)
+function lua.executeFile(filename, varArgs)
   local file = io.open(filename, "r")
   local contents = file:read("*a")
   file:close()
-  return lua.executeString(contents)
+  return lua.executeString(contents, varArgs)
 end
 
 lua.parseArgs({...})

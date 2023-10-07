@@ -1,7 +1,7 @@
 --[[
   Name: VirtualMachine.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-09-XX
+  Date: 2023-10-XX
   All Rights Reserved.
 --]]
 
@@ -86,10 +86,10 @@ function VirtualMachine:new(luaState)
       local returnValue = originalRegister[index]
 
       local information = {
-        instruction = instructions[pc],
+        instruction      = instructions[pc],
         instructionIndex = pc,
-        registerIndex = index,
-        returnValue = returnValue,
+        registerIndex    = index,
+        returnValue      = returnValue,
        }
       insert(stackTraceTb._Index, information)
     end)
@@ -101,11 +101,11 @@ function VirtualMachine:new(luaState)
       local oldValue = originalRegister[index]
 
       local information = {
-        instruction = instructions[pc],
+        instruction      = instructions[pc],
         instructionIndex = pc,
-        registerIndex = index,
-        oldValue = returnValue,
-        newValue = value
+        registerIndex    = index,
+        oldValue         = returnValue,
+        newValue         = value
        }
       insert(stackTraceTb._NewIndex, information)
     end)
@@ -120,27 +120,27 @@ function VirtualMachine:new(luaState)
     local stackTraceTb = self.stackTraceTb
 
     print("Register._index:")
-    for Index, Value in ipairs(stackTraceTb._Index) do
-      print("  OPName: "..Value.instruction[1])
-      print("  A: "..tostring(Value.instruction[2]))
-      print("  B: "..tostring(Value.instruction[3]))
-      print("  C: "..tostring(Value.instruction[4]))
-      print("  Instruction index: "..tostring(Value.instructionIndex))
-      print("  Register index: "..Value.registerIndex)
-      print("  Return value: "..tostring(Value.returnValue))
+    for _, value in ipairs(stackTraceTb._Index) do
+      print("  OPName: "            .. value.instruction[1])
+      print("  A: "                 .. tostring(value.instruction[2]))
+      print("  B: "                 .. tostring(value.instruction[3]))
+      print("  C: "                 .. tostring(value.instruction[4]))
+      print("  Instruction index: " .. tostring(value.instructionIndex))
+      print("  Register index: "    .. value.registerIndex)
+      print("  Return value: "      .. tostring(value.returnValue))
       print("------------------------------------")
     end
     print("Register._newindex:")
-    for Index, Value in ipairs(stackTraceTb._NewIndex) do
-        print("  OPName: "..Value.instruction[1])
-        print("  A: "..tostring(Value.instruction[2]))
-        print("  B: "..tostring(Value.instruction[3]))
-        print("  C: "..tostring(Value.instruction[4]))
-        print("  Instruction index: "..tostring(Value.instructionIndex))
-        print("  Register index: "..Value.registerIndex)
-        print("  Old value: "..tostring(Value.oldValue))
-        print("  New value: "..tostring(Value.newValue))
-        print("------------------------------------")
+    for _, value in ipairs(stackTraceTb._NewIndex) do
+      print("  OPName: "            .. value.instruction[1])
+      print("  A: "                 .. tostring(value.instruction[2]))
+      print("  B: "                 .. tostring(value.instruction[3]))
+      print("  C: "                 .. tostring(value.instruction[4]))
+      print("  Instruction index: " .. tostring(value.instructionIndex))
+      print("  Register index: "    .. value.registerIndex)
+      print("  Old value: "         .. tostring(value.oldValue))
+      print("  New value: "         .. tostring(value.newValue))
+      print("------------------------------------")
     end
     self.stackTraceTb = nil
   end
