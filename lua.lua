@@ -101,8 +101,8 @@ function lua.executeString(string, varArgs)
   
   local tokens = Lexer:new(string):tokenize()
   local AST = Parser:new(tokens):parse()
-  Helpers.PrintTable(AST)
-  --return ASTExecutor:new(AST, newState):execute()
+  -- Helpers.PrintTable(AST)
+  return ASTExecutor:new(AST, newState):execute()
 end
 
 function lua.executeFile(filename, varArgs)
