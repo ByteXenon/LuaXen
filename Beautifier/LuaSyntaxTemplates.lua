@@ -1,19 +1,9 @@
 --[[
   Name: LuaSyntaxTemplates.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-09-XX
+  Date: 2023-10-XX
   All Rights Reserved.
 --]]
-
---[[ NOTE:
-
-  "postCodeBlockIndentation" (format name to change) means an optional indentation which may be or may be not present
-  depending on total number of code block elements, if there's more than 1 element in a code block, it will
-  include a new line character ("\n") and current indentation, if there's no elements in the code block,
-  it will return an empty string instead.
-
---]]
-
 
 local function stringFormat(str, formatTb)
   str = str:gsub("{([\1-\124\126-\255]+)}", function(formatValue)

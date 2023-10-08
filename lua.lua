@@ -5,7 +5,6 @@
   All Rights Reserved.
 --]]
 
---local Interpreter = require("Interpreter/Main")
 local ModuleManager = require("ModuleManager/ModuleManager"):newFile("lua")
 
 local Helpers = ModuleManager:loadModule("Helpers/Helpers")
@@ -101,7 +100,6 @@ function lua.executeString(string, varArgs)
   
   local tokens = Lexer:new(string):tokenize()
   local AST = Parser:new(tokens):parse()
-  -- Helpers.PrintTable(AST)
   return ASTExecutor:new(AST, newState):execute()
 end
 

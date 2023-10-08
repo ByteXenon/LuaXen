@@ -17,12 +17,12 @@ function NodeFactory:createUnaryOperatorNode(operatorValue, operand, precedence)
   return { TYPE = "UnaryOperator", Value = operatorValue, Operand = operand, Precedence = precedence }
 end
 -- Function call (e.g., f(a, b))
-function NodeFactory:createFunctionCallNode(expression, parameters)
-  return { TYPE = "FunctionCall", Expression = expression, Parameters = parameters }
+function NodeFactory:createFunctionCallNode(expression, arguments)
+  return { TYPE = "FunctionCall", Expression = expression, Arguments = arguments }
 end
 -- Method call (e.g., obj:m(a, b))
-function NodeFactory:createMethodCallNode(expression, parameters)
-  return { TYPE = "MethodCall", Expression = expression, Parameters = parameters }
+function NodeFactory:createMethodCallNode(expression, arguments)
+  return { TYPE = "MethodCall", Expression = expression, Arguments = arguments }
 end
 -- Identifier (e.g., variable name)
 function NodeFactory:createIdentifierNode(value)

@@ -9,44 +9,63 @@
 local ModuleManager = require("ModuleManager/ModuleManager"):newFile("ASTHierarchy/ASTHierarchy")
 local Helpers = ModuleManager:loadModule("Helpers/Helpers")
 
+local NodeMethods = ModuleManager:loadModule("ASTHierarchy/NodeMethods/NodeMethods")
 local NodeSpecs = ModuleManager:loadModule("ASTHierarchy/NodeSpecs")
-local DefaultType = ModuleManager:loadModule("ASTHierarchy/Types/Default")
 
 --* ASTHierarchy *--
 local ASTHierarchy = {}
 function ASTHierarchy:new(AST)
   local ASTHierarchyInstance = {}
   ASTHierarchyInstance.ast = AST
-  function ASTHierarchyInstance:convertToOOPForm(node, parent, parentIndex)
-    if not type(node) == "table" then return end
-    local nodeType = node.TYPE or "ASTList"
-    
-    local nodeProxy = newproxy(true)
-    getmetatable(nodeProxy).__index = node
-    getmetatable(nodeProxy).__newindex = node
 
-    convertToOOPFormIfExists({"Expression"})
-    convertList(node.CodeBlock)
-    convertList(node.Expressions)
-    convertList(node.Variables)
-    convertList(node.Parameters)
-
-    for index, value in pairs(defaultType) do
-      nodeProxy[index] = value
+  function ASTHierarchyInstance:applyMethods(node)
+    local nodeType = node.TYPE
+    for index, method in pairs(NodeMethods[nodeType]) do
+      node[index] = function(self, ...) return method(self, node, ...) end
     end
-    nodeProxy.Type = nodeType
-    nodeProxy.Original = node 
-    nodeProxy.Parent = parent
-    nodeProxy.ChildIndex = parentIndex
-    parent[parentIndex] = nodeProxy
-
   end
-  function ASTHierarchyInstance:convert()
-    local ast = self.ast
-    for index, value in ipairs(ast) do
-      self:convertToOOPForm(value, ast, index)
+  function ASTHierarchyInstance:traverseNodeChildren(node)
+    local nodeType = node.TYPE
+    local nodeSpec = NodeSpecs[nodeType]
+
+    if nodeType == "AST" then
+      for index, childNode in ipairs(node) do
+        self:transformNode(childNode, node, index)
+      end
+    else
+      self:processNodeSpec(node, nodeSpec)
     end
-    return ast
+  end
+
+  function ASTHierarchyInstance:processNodeSpec(node, nodeSpec)
+    for index, indexType in pairs(nodeSpec) do
+      if indexType == "Node" or indexType == "OptionalNode" then
+        self:transformNode(node[index], node, index)
+      elseif indexType == "NodeList" then
+        self:processNodeList(node, index)
+      end
+    end
+  end
+
+  function ASTHierarchyInstance:processNodeList(node, index)
+    for index2, childNode in ipairs(node[index]) do
+      self:transformNode(childNode, node, (index .. ">" .. index2))
+    end
+  end
+
+  function ASTHierarchyInstance:transformNode(node, parent, parentIndex)
+    if not node then return end
+    node.TYPE = node.TYPE or "AST"
+    node.Parent = parent
+    node.ChildIndex = parentIndex
+
+    self:traverseNodeChildren(node)
+    self:applyMethods(node)
+    if not parent then return node end
+  end
+
+  function ASTHierarchyInstance:convert()
+    return self:transformNode(self.ast)
   end
 
   return ASTHierarchyInstance
