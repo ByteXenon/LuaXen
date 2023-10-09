@@ -15,11 +15,10 @@ local insert = table.insert
 --* _Default *--
 local _Default = {}
 
--- Get node's type
+-- Get the type of the node
 function _Default:getType(node)   return node.TYPE    end
 -- Get the parent of the node
 function _Default:getParent(node) return node.Parents end
-
 -- Get children of the node
 function _Default:getChildren(node)
   local nodeType = node.TYPE
@@ -42,7 +41,6 @@ function _Default:getChildren(node)
 
   return children
 end
-
 -- Get descendants of the node
 function _Default:getDescendants(node)
   local descendants = {}
@@ -58,8 +56,7 @@ function _Default:getDescendants(node)
   recursiveGet(node)
   return descendants
 end
-
--- Get children of the node that have the type of "type"
+-- Get children with specific type
 function _Default:getChildrenWithType(node, type)
   local children = node:getChildren()
   local childrenWithSpecificType = {}
@@ -70,8 +67,7 @@ function _Default:getChildrenWithType(node, type)
   end
   return childrenWithSpecificType
 end
-
--- Get descendants of the node that have the type of "type"
+-- Get descendants with specific type
 function _Default:getDescendantsWithType(node, type)
   local descendants = node:getDescendants()
   local descendantsWithSpecificType = {}
@@ -81,6 +77,20 @@ function _Default:getDescendantsWithType(node, type)
     end
   end
   return descendantsWithSpecificType
+end
+
+function _Default:getOriginalIndices(node)
+  local nodeType = node.TYPE
+  if nodeType == "AST" then
+    return unpack(node)
+  end
+
+  local tb = {}
+  local nodeSpec = NodeSpecs[nodeType]
+  for index, value in ipairs(nodeSpec) do
+    tb[index] = node[index]
+  end
+  return tb
 end
 
 --* NodeMethodsInfo *--

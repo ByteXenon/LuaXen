@@ -7,6 +7,9 @@
 *.tmp
 *_logs*
 /*test*.lua
+*.md
+/README.md
+
 
 # Ignore those directories, they're not ready yet.
 /ByteCodeReader

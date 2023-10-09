@@ -93,7 +93,7 @@ function ASTNodesFunctionality:new(ASTExecutor)
   end
   function ASTNodesFunctionalityInstance:FunctionCall(node, isInCodeBlock)
     local expression = self:executeNode(node.Expression)
-    local parameters = self:executeNodes(node.Parameters)
+    local parameters = self:executeNodes(node.Arguments)
     local returnValues = {expression(unpack(parameters))}
     if isInCodeBlock then return end
     

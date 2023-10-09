@@ -34,14 +34,7 @@ function ASTObfuscator:new(ast)
     return str
   end
   function ASTObfuscatorInstance:processOperator(node)
-    --[[
-      Operator1 \ Operator2 	+ 	- 	* 	/ 	^
-      + 	y(x) = x - C 	y(x) = x + C 	y(x) = C / x 	y(x) = C * x 	y(x) = log_{x + C}(C)
-      - 	y(x) = x + C 	y(x) = x - C 	y(x) = -C / x 	y(x) = -C * x 	y(x) = log_{x - C}(C)
-      * 	y(x) = C / x 	y(x) = -C / x 	y(x) = sqrt[C]{x} 	y(x) = x ^ 2 / C 	y(x) = 1/C
-      / 	y(x) = C * x 	y(x) = -C * x 	y(x) = x ^ 2 / C 	y(x) = sqrt[C]{x} 	y(x) = 1/C
-      ^ 	y(x) = log_{x}(C) 	y(x) = log_{-x}(C) 	y(x) = log_{sqrt[C]{x}}(C) 	y(x) = log_{x ^ 2 / C}(C) 	y(x)=log_{x^C}(C)
-    ]]
+
     return newNode
   end
   function ASTObfuscatorInstance:processNode(node)
