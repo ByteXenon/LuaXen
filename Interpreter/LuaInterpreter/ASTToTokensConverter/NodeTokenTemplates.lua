@@ -65,7 +65,7 @@ end
 function NodeTokenTemplates:LocalVariable(tokens, node)
   insert(tokens, self:newKeyword("local"))
   for index, variable in ipairs(node.Variables) do
-    insert(tokens, variable)
+    insert(tokens, self:newIdentifier(variable.Value))
     if index ~= #node.Variables then insert(tokens, self:newCharacter(",")) end
   end
   insert(tokens, self:newCharacter("="))
@@ -88,6 +88,7 @@ function NodeTokenTemplates:IfStatement(tokens, node)
   end
   if node.Else and node.Else.TYPE then
     insert(tokens, self:newKeyword("else"))
+    print(node.Else.CodeBlock)
     insertTokensFromList(tokens, self:tokenizeCodeBlock(node.Else.CodeBlock))
   end
   insert(tokens, self:newKeyword("end"))
@@ -183,7 +184,7 @@ function NodeTokenTemplates:Function(tokens, node)
 end
 function NodeTokenTemplates:FunctionCall(tokens, node)
   local expression = node.Expression
-  local parameters = node.Parameters
+  local arguments = node.Arguments
   
   if expression.TYPE ~= "Identifier" and expression.TYPE ~= "Index" then
     insert(tokens, self:newCharacter("("))
@@ -193,15 +194,15 @@ function NodeTokenTemplates:FunctionCall(tokens, node)
     insert(tokens, self:newCharacter(")"))
   end
   insert(tokens, self:newCharacter("("))
-  for index, parameter in ipairs(parameters) do
+  for index, parameter in ipairs(arguments) do
     insertTokensFromList(tokens, self:tokenizeNode(parameter))
-    if index ~= #parameters then insert(tokens, self:newCharacter(",")) end
+    if index ~= #arguments then insert(tokens, self:newCharacter(",")) end
   end
   insert(tokens, self:newCharacter(")"))
 end
 function NodeTokenTemplates:MethodCall(tokens, node)
   local expression = node.Expression
-  local parameters = node.Parameters
+  local arguments = node.Arguments
   
   if expression.TYPE ~= "Identifier" and expression.TYPE ~= "Index" and expression.TYPE ~= "MethodIndex" then
     insert(tokens, self:newCharacter("("))
@@ -211,9 +212,9 @@ function NodeTokenTemplates:MethodCall(tokens, node)
     insert(tokens, self:newCharacter(")"))
   end
   insert(tokens, self:newCharacter("("))
-  for index, parameter in ipairs(parameters) do
+  for index, parameter in ipairs(arguments) do
     insertTokensFromList(tokens, self:tokenizeNode(parameter))
-    if index ~= #parameters then insert(tokens, self:newCharacter(",")) end
+    if index ~= #arguments then insert(tokens, self:newCharacter(",")) end
   end
   insert(tokens, self:newCharacter(")"))
 end
@@ -287,7 +288,7 @@ function NodeTokenTemplates:ReturnStatement(tokens, node)
     if index ~= #node.Expressions then insert(tokens, self:newCharacter(",")) end
   end
 end
-function NodeTokenTemplates:DoStatement(tokens, node)
+function NodeTokenTemplates:DoBlock(tokens, node)
   insert(tokens, self:newKeyword("do"))
   insertTokensFromList(tokens, self:tokenizeCodeBlock(node.CodeBlock))
   insert(tokens, self:newKeyword("end"))
@@ -311,6 +312,9 @@ function NodeTokenTemplates:MethodIndex(tokens, node)
   else
     insertTokensFromList(tokens, self:tokenizeNode(node.Index))
   end
+end
+function NodeTokenTemplates:BreakStatement(tokens, node)
+  insert(tokens, self:newKeyword("break"))
 end
 
 return NodeTokenTemplates

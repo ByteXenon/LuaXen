@@ -8,6 +8,10 @@
 --* NodeFactory *--
 local NodeFactory = {}
 
+function NodeFactory:createGroup(codeBlock)
+  return { TYPE = "Group", unpack(codeBlock)}
+end
+
 -- Binary operation (e.g., a + b)
 function NodeFactory:createOperatorNode(operatorValue, leftExpr, rightExpr, precedence)
   return { TYPE = "Operator", Value = operatorValue, Left = leftExpr, Right = rightExpr, Precedence = precedence }
@@ -50,15 +54,15 @@ function NodeFactory:createTableElementNode(key, value)
 end
 -- Function definition
 function NodeFactory:createFunctionNode(parameters, codeBlock)
-  return { TYPE = "Function", Parameters = parameters, CodeBlock = codeBlock }
+  return { TYPE = "Function", Parameters = parameters, CodeBlock = self:createGroup(codeBlock) }
 end
 -- Function declaration with fields
 function NodeFactory:createFunctionDeclarationNode(parameters, codeBlock, fields)
-  return { TYPE = "FunctionDeclaration", Parameters = parameters, CodeBlock = codeBlock, Fields = fields }
+  return { TYPE = "FunctionDeclaration", Parameters = parameters, CodeBlock = self:createGroup(codeBlock), Fields = fields }
 end
 -- Method declaration with fields
 function NodeFactory:createMethodDeclarationNode(parameters, codeBlock, fields)
-  return { TYPE = "MethodDeclaration", Parameters = parameters, CodeBlock = codeBlock, Fields = fields }
+  return { TYPE = "MethodDeclaration", Parameters = parameters, CodeBlock = self:createGroup(codeBlock), Fields = fields }
 end
 -- Variable assignment
 function NodeFactory:createVariableAssignmentNode(expressions, variables)
@@ -66,7 +70,7 @@ function NodeFactory:createVariableAssignmentNode(expressions, variables)
 end
 -- Local function definition
 function NodeFactory:createLocalFunctionNode(name, parameters, codeBlock)
-  return { TYPE = "LocalFunction", Name = name, Parameters = parameters, CodeBlock = codeBlock }
+  return { TYPE = "LocalFunction", Name = name, Parameters = parameters, CodeBlock = self:createGroup(codeBlock) }
 end
 -- Local variable assignment
 function NodeFactory:createLocalVariableNode(variables, expressions)
@@ -74,27 +78,27 @@ function NodeFactory:createLocalVariableNode(variables, expressions)
 end
 -- If statement with else-ifs and else
 function NodeFactory:createIfStatementNode(condition, codeBlock, elseIfs, elseStatement)
-  return { TYPE = "IfStatement", Condition = condition, CodeBlock = codeBlock, ElseIfs = elseIfs, Else = elseStatement }
+  return { TYPE = "IfStatement", Condition = condition, CodeBlock = self:createGroup(codeBlock), ElseIfs = elseIfs, Else = elseStatement }
 end
 -- Else-if clause in an if statement
 function NodeFactory:createElseIfStatementNode(condition, codeBlock)
-  return { TYPE = "ElseIfStatement", Condition = condition, CodeBlock = codeBlock  }
+  return { TYPE = "ElseIfStatement", Condition = condition, CodeBlock = self:createGroup(codeBlock)  }
 end
 -- Else clause in an if statement
 function NodeFactory:createElseStatementNode(codeBlock)
-  return { TYPE = "ElseStatement", CodeBlock = codeBlock }
+  return { TYPE = "ElseStatement", CodeBlock = self:createGroup(codeBlock) }
 end
 -- Until loop statement
 function NodeFactory:createUntilLoopNode(codeBlock, statement)
-  return { TYPE = "UntilLoop", CodeBlock = codeBlock, Statement = statement }
+  return { TYPE = "UntilLoop", CodeBlock = self:createGroup(codeBlock), Statement = statement }
 end
 -- Do block statement
 function NodeFactory:createDoBlockNode(codeBlock)
-  return { TYPE = "DoBlock", CodeBlock = codeBlock }
+  return { TYPE = "DoBlock", CodeBlock = self:createGroup(codeBlock) }
 end
 -- While loop statement
 function NodeFactory:createWhileLoopNode(expression, codeBlock)
-  return { TYPE = "WhileLoop", Expression = expression, CodeBlock = codeBlock }
+  return { TYPE = "WhileLoop", Expression = expression, CodeBlock = self:createGroup(codeBlock) }
 end
 -- Return statement in functions
 function NodeFactory:createReturnStatementNode(expressions)
@@ -110,11 +114,11 @@ function NodeFactory:createBreakStatementNode()
 end
 -- Generic for loop statement
 function NodeFactory:createGenericForNode(iteratorVariables, expression, codeBlock)
-  return { TYPE = "GenericFor", IteratorVariables = iteratorVariables, Expression = expression, CodeBlock = codeBlock }
+  return { TYPE = "GenericFor", IteratorVariables = iteratorVariables, Expression = expression, CodeBlock = self:createGroup(codeBlock) }
 end
 -- Numeric for loop statement
 function NodeFactory:createNumericForNode(iteratorVariables, expressions, codeBlock)
-  return { TYPE = "NumericFor", IteratorVariables = iteratorVariables, Expressions = expressions, CodeBlock = codeBlock }
+  return { TYPE = "NumericFor", IteratorVariables = iteratorVariables, Expressions = expressions, CodeBlock = self:createGroup(codeBlock) }
 end
 
 return NodeFactory

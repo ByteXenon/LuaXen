@@ -21,17 +21,13 @@ local insert = table.insert
 
 --* ASTToTokensConverter *--
 local ASTToTokensConverter = {}
-function ASTToTokensConverter:new(codeOrAST)
+function ASTToTokensConverter:new(astHierarchy)
   local ASTToTokensConverterInstance = {}
   for index, func in pairs(NodeTokenTemplates) do
     ASTToTokensConverterInstance[index] = func
   end
-  ASTToTokensConverterInstance.ast = codeOrAST
-  if type(codeOrAST) == "string" then
-    local Tokens = Lexer:new(Code):tokenize()
-    local AST = Parser:new(Tokens):parse()
-    ASTToTokensConverterInstance.ast = AST
-  end
+
+  ASTToTokensConverterInstance.ast = astHierarchy
 
   function ASTToTokensConverterInstance:newKeyword(value)
     return { TYPE = "Keyword", Value = value }

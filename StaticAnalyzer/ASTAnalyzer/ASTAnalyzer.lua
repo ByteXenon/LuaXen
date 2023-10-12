@@ -8,7 +8,6 @@
 --* Dependencies *--
 local ModuleManager = require("ModuleManager/ModuleManager"):newFile("StaticAnalyzer/ASTAnalyzer/ASTAnalyzer")
 local Helpers = ModuleManager:loadModule("Helpers/Helpers")
-local ASTHierarchy = ModuleManager:loadModule("ASTHierarchy/ASTHierarchy")
 
 --* Export library functions *--
 local find = table.find or Helpers.TableFind

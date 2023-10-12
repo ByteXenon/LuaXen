@@ -9,16 +9,23 @@
 local ModuleManager = require("ModuleManager/ModuleManager"):newFile("ASTHierarchy/NodeMethods/NodeMethodsFunctions")
 local NodeSpecs = ModuleManager:loadModule("ASTHierarchy/NodeSpecs")
 
+local ASTAnalyzer = ModuleManager:loadModule("StaticAnalyzer/ASTAnalyzer/ASTAnalyzer")
+local ASTToTokensConverter = ModuleManager:loadModule("Interpreter/LuaInterpreter/ASTToTokensConverter/ASTToTokensConverter")
+local Printer = ModuleManager:loadModule("Printer/Printer")
+
 --* Export library functions *--
 local insert = table.insert
 
 --* _Default *--
 local _Default = {}
 
+--* Identifier *--
+local Identifier = {}
+
 -- Get the type of the node
 function _Default:getType(node)   return node.TYPE    end
 -- Get the parent of the node
-function _Default:getParent(node) return node.Parents end
+function _Default:getParent(node) return node.Parent end
 -- Get children of the node
 function _Default:getChildren(node)
   local nodeType = node.TYPE
@@ -36,6 +43,7 @@ function _Default:getChildren(node)
       for index2, node in ipairs(node[index]) do
         insert(children, node)
       end
+    elseif indexType == "Value" then
     end
   end
 
@@ -78,7 +86,7 @@ function _Default:getDescendantsWithType(node, type)
   end
   return descendantsWithSpecificType
 end
-
+-- Get values of the node without methods
 function _Default:getOriginalIndices(node)
   local nodeType = node.TYPE
   if nodeType == "AST" then
@@ -92,10 +100,27 @@ function _Default:getOriginalIndices(node)
   end
   return tb
 end
+function _Default:getTokens(node)
+  local nodeType = node.TYPE
+  if nodeType == "AST" or nodeType == "Group" then
+    return ASTToTokensConverter:new(node):run()
+  end
+  return ASTToTokensConverter:new(node):tokenizeNode(node)
+end
+function _Default:printTokens(node)
+  local tokens = node:getTokens()
+  return Printer:new(node):run()
+end
+-- Check if identifier is a local variable
+function Identifier:isALocal(node, scope)
+  local astAnalyzer = ASTAnalyzer:new(self.Root)
+  return astAnalyzer:isALocal(node.Value, scope)
+end
 
 --* NodeMethodsInfo *--
 local NodeMethodsInfo = {
-  _Default = _Default
+  _Default = _Default,
+  Identifier = Identifier
 }
 
 return NodeMethodsInfo

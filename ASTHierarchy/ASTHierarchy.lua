@@ -49,7 +49,7 @@ function ASTHierarchy:new(AST)
 
   function ASTHierarchyInstance:processNodeList(node, index)
     for index2, childNode in ipairs(node[index]) do
-      self:transformNode(childNode, node, (index .. ">" .. index2))
+      self:transformNode(childNode, node[index], (index .. ">" .. index2))
     end
   end
 
@@ -58,9 +58,11 @@ function ASTHierarchy:new(AST)
     node.TYPE = node.TYPE or "AST"
     node.Parent = parent
     node.ChildIndex = parentIndex
+    node.Root = self.ast
 
-    self:traverseNodeChildren(node)
     self:applyMethods(node)
+    self:traverseNodeChildren(node)
+    
     if not parent then return node end
   end
 

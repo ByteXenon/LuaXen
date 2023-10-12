@@ -12,7 +12,6 @@ local Helpers = ModuleManager:loadModule("Helpers/Helpers")
 local StatementParser = ModuleManager:loadModule("Interpreter/LuaInterpreter/Parser/StatementParser")
 local NodeFactory = ModuleManager:loadModule("Interpreter/LuaInterpreter/Parser/NodeFactory")
 local LuaMathParser = ModuleManager:loadModule("Interpreter/LuaInterpreter/Parser/LuaMathParser")
-local Debugger = ModuleManager:loadModule("Debugger/Debugger")
 
 --* Export library functions *--
 local stringifyTable = Helpers.StringifyTable

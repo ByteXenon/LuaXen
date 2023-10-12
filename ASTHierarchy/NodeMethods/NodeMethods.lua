@@ -13,18 +13,20 @@ local NodeMethodsFunctions = ModuleManager:loadModule("ASTHierarchy/NodeMethods/
 local NodeMethods = {
   Operator            = { }, UnaryOperator       = { },
   FunctionCall        = { }, MethodCall          = { },
-  Identifier          = { }, Number              = { },
-  Index               = { }, MethodIndex         = { },
-  Table               = { }, TableElement        = { },
-  Function            = { }, FunctionDeclaration = { },
-  MethodDeclaration   = { }, LocalFunction       = { },
-  VariableAssignment  = { }, LocalVariable       = { },
-  IfStatement         = { }, ElseIfStatement     = { },
-  ElseStatement       = { }, UntilLoop           = { },
-  DoBlock             = { }, WhileLoop           = { },
-  ReturnStatement     = { }, ContinueStatement   = { },
-  BreakStatement      = { }, GenericFor          = { },
-  NumericFor          = { }, AST                 = { }
+  Identifier          = { }, Constant            = { },
+  Number              = { },
+  String              = { }, Index               = { },
+  MethodIndex         = { }, Table               = { },
+  TableElement        = { }, Function            = { },
+  FunctionDeclaration = { }, MethodDeclaration   = { },
+  LocalFunction       = { }, VariableAssignment  = { },
+  LocalVariable       = { }, IfStatement         = { },
+  ElseIfStatement     = { }, ElseStatement       = { },
+  UntilLoop           = { }, DoBlock             = { },
+  WhileLoop           = { }, ReturnStatement     = { },
+  ContinueStatement   = { }, BreakStatement      = { },
+  GenericFor          = { }, NumericFor          = { },
+  AST                 = { }
 }
 
 local function createNodeMethod(nodeType, methodIndex, func)

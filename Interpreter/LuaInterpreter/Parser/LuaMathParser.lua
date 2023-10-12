@@ -56,7 +56,6 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
     self.tokens = luaParser.tokens -- Just in case 
     self.currentTokenIndex = luaParser.currentTokenIndex
   end
-
   function PatchedMathParser:isClosingParenthesis(token)
     return token.TYPE == "Character" and token.Value == ")"
   end
@@ -64,6 +63,25 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
     local tokenType = token.TYPE
     local operandTypes = {"String", "Number", "Identifier", "Constant"}
     return find(operandTypes, tokenType)
+  end
+  function PatchedMathParser:isRightAssociative(operator)
+    return find(rightAssociativeOperators, operator)
+  end  
+
+  function PatchedMathParser:handleOperatorWithPrecedence(token, precedence, left, minPrecedence)
+    local nextPrecedence = (self:isRightAssociative(token.Value) and precedence - 1) or precedence
+    
+    self:consumeToken()
+    local right = self:parseBinaryOperator(nextPrecedence)
+    if not right then return end
+    return luaParser:createOperatorNode(token.Value, left, right, precedence)
+  end
+
+  function PatchedMathParser:handleSpecialOperators(token, leftExpr)
+    self:syncLuaParser()
+    local newLeft = luaParser:handleSpecialOperators(token, leftExpr)
+    self:syncMathParser()
+    return newLeft
   end
 
   function PatchedMathParser:parseBinaryOperator(minPrecedence)
@@ -74,8 +92,15 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
 
     local left = self:parseUnaryOperator()
     if not left then
+      --[[@PRIVATE
+        Honestly, I don't care about the code quality anymore,
+        I just want to go cry in a corner because...
+        fucking hell.
+        fuck it all.
+      --]]
       self.unexpectedEnd = true;
-      return currentToken
+      self.currentTokenIndex = self.currentTokenIndex - 1
+      return
     end
 
     while true do
@@ -89,23 +114,24 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
       local precedence = self:getPrecedence(token)
       if precedence then
         if precedence <= minPrecedence then break end
-        self:consumeToken()
-        local right = self:parseBinaryOperator(precedence)
-        left = luaParser:createOperatorNode(token.Value, left, right, precedence)
+        local newLeft = self:handleOperatorWithPrecedence(token, precedence, left, minPrecedence) 
+        if not newLeft then
+          self.unexpectedEnd = true;
+          return
+        end
+        left = newLeft
       elseif not precedence then
-        self:syncLuaParser()
-        -- Consume if this is a Lua operator
-        local newLeft = luaParser:handleSpecialOperators(token, left)
-        self:syncMathParser()
+        local newLeft = self:handleSpecialOperators(token, left);
         if not newLeft then
           self.unexpectedEnd = true;
           return left
         end
 
-        self:consumeToken() -- Consume the last character of an operator
         left = newLeft
+        self:consumeToken() -- Consume the last character of an operator
       end
     end
+    
     return left
   end;
   function PatchedMathParser:parseUnaryOperator()
@@ -161,6 +187,7 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
       self.errorMessage = errorMessage
       return 
     end
+
     return error(errorMessage)
   end;
   function PatchedMathParser:parse()

@@ -11,7 +11,9 @@ local NodeSpecs = {
   FunctionCall        = { Expression  = "Node",         Arguments   = "NodeList" },
   MethodCall          = { Expression  = "Node",         Arguments   = "NodeList" },
   Identifier          = { Value       = "Value" },
+  Constant            = { Value       = "Value" },
   Number              = { Value       = "Value" },
+  String              = { Value       = "Value" },
   Index               = { Index       = "Node",         Expression  = "Node" },
   MethodIndex         = { Index       = "Node",         Expression  = "Node" },
   Table               = { Elements    = "TableElementList" },
@@ -20,7 +22,7 @@ local NodeSpecs = {
   Function            = { Parameters  = "StringList",   CodeBlock   = "NodeList" },
   FunctionDeclaration = { Parameters  = "StringList",   CodeBlock   = "NodeList", Fields  = "StringList" },
   MethodDeclaration   = { Parameters  = "StringList",   CodeBlock   = "NodeList", Fields  = "StringList" },
-  LocalFunction       = { Parameters  = "NodeList",     CodeBlock   = "NodeList", Name    = "String" },
+  LocalFunction       = { Parameters  = "StringList",   CodeBlock   = "NodeList", Name    = "String" },
 
   VariableAssignment  = { Expressions = "NodeList",     Variables   = "NodeList" },
   LocalVariable       = { Variables   = "NodeList",     Expressions = "NodeList" },

@@ -91,14 +91,14 @@ end
 function Statements:consumeFunctionCall(currentExpression)
   self:consume() -- Consume the "(" symbol
   
-  -- Get parameters for the function
-  local parameters = {};
+  -- Get arguments for the function
+  local arguments = {};
   if not self:isClosingParenthesis(self.currentToken) then
-    parameters = self:consumeMultipleExpressions()
+    arguments = self:consumeMultipleExpressions()
     self:consume()
   end
   
-  return self:createFunctionCallNode(currentExpression, parameters)
+  return self:createFunctionCallNode(currentExpression, arguments)
 end
 -- <table>:<method_name>(<args>*)
 function Statements:consumeMethodCall(currentExpression)
@@ -110,7 +110,7 @@ function Statements:consumeMethodCall(currentExpression)
   self:consume() -- Consume the name of the method
 
   local functionCall = self:consumeFunctionCall(self:createMethodIndexNode(functionName, currentExpression))
-  return self:createMethodCallNode(functionCall.Expression, functionCall.Parameters)
+  return self:createMethodCallNode(functionCall.Expression, functionCall.Arguments)
 end
 -- { ( \[<expression>\] = <expression> | <identifier> = <expression> | <expression> ) ( , )? }*
 function Statements:consumeTable()
@@ -129,7 +129,7 @@ function Statements:consumeTable()
       local value = self:consumeExpression()
       insert(elements, self:createTableElementNode(key, value))
     elseif curToken.TYPE == "Identifier" and self:compareTokenValueAndType(self:peek(), "Character", "=") then
-      local key =  curToken.Value
+      local key =  curToken
       self:consume() -- Consume key
       self:consume() -- Consume "="
       local value = self:consumeExpression()
@@ -234,7 +234,7 @@ function Statements:_if()
   local expression = self:consumeExpression()
   self:expectNextTokenAndConsume("Keyword", "then")
   local ifStatementCodeBlock = self:consumeCodeBlock({"end", "else", "elseif"})
-  local newIfStatement = self:createIfStatementNode(expression, ifStatementCodeBlock, {}, {})
+  local newIfStatement = self:createIfStatementNode(expression, ifStatementCodeBlock, {})
 
   -- Consume multiple "elseif" statements if there's any
   while self:compareTokenValueAndType(self.currentToken, "Keyword", "elseif") do
