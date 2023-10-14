@@ -2,7 +2,6 @@
   Name: LuaState.lua
   Author: ByteXenon [Luna Gilbert]
   Date: 2023-10-XX
-  All Rights Reserved.
 --]]
 
 --* Dependencies *--
@@ -16,7 +15,7 @@ local defaultEnvironment = getfenv()
 
 -- * LuaState * --
 local LuaState = {}
-function LuaState:new(instructions, constants, upvalues, env, register, protos, vararg)
+function LuaState:new(instructions, constants, upvalues, env, register, protos, vararg, parameters, top)
   local LuaStateObject = {}
 
   LuaStateObject.instructions = instructions or {}
@@ -26,6 +25,8 @@ function LuaState:new(instructions, constants, upvalues, env, register, protos, 
   LuaStateObject.register = register or {}
   LuaStateObject.protos = protos or {}
   LuaStateObject.vararg = vararg or {}
+  LuaStateObject.parameters = parameters or {}
+  LuaStateObject.top = top or 0
 
   function LuaStateObject:printState()
     print('-----------------------')

@@ -2,7 +2,6 @@
   Name: LuaSyntaxTemplates.lua
   Author: ByteXenon [Luna Gilbert]
   Date: 2023-10-XX
-  All Rights Reserved.
 --]]
 
 local function stringFormat(str, formatTb)
@@ -36,20 +35,23 @@ local stringTemplates = {
   Repeat = "{codeBlockIndentation}repeat{codeBlock}{postCodeBlockIndentation}until {expression}",
   Return = "{codeBlockIndentation}return {expressions}",
   Break = "{codeBlockIndentation}break",
-  Do = "{codeBlockIndentation}do{codeBlock}{postCodeBlockIndentation}end",
+  DoBlock = "{codeBlockIndentation}do{codeBlock}{postCodeBlockIndentation}end",
   Continue = "{codeBlockIndentation}continue",
 
   Table = "\{{tableElements}\}",
   TableElement = "{indentation}[{key}] = {expression},",
 
-  Function = "{codeBlockIndentation}function({arguments}){codeBlock}{postCodeBlockIndentation}end",
+  MethodIndex = "{codeBlockIdentation}{index}:{expression}",
+
+  Function = "{codeBlockIndentation}function({parameters}){codeBlock}{postCodeBlockIndentation}end",
+  -- MethodCall = "{codeBlockIdentation}"
   -- FunctionCall = "{codeBlockIndentation}{expression}({parameters})"
 }
 
 functionTemplates = {
   FunctionCall = function(self, node, isInCodeBlock, formatTable)
-    local standardTemplate = "{codeBlockIndentation}{expression}({parameters})"
-    local templateWithParentheses = "{codeBlockIndentation}({expression})({parameters})"
+    local standardTemplate = "{codeBlockIndentation}{expression}({arguments})"
+    local templateWithParentheses = "{codeBlockIndentation}({expression})({arguments})"
 
     local expressionType = node.Expression and node.Expression.TYPE
     if expressionType ~= "Identifier" and expressionType ~= "Index" then

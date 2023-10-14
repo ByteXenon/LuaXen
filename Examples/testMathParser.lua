@@ -2,7 +2,6 @@
   Name: testMathParser.lua
   Author: ByteXenon [Luna Gilbert]
   Date: 2023-09-XX
-  All Rights Reserved.
 --]]
 
 local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Examples/testMathParser")

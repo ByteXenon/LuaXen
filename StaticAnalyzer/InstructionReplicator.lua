@@ -2,7 +2,6 @@
   Name: InstructionReplicator.lua
   Author: ByteXenon [Luna Gilbert]
   Date: 2023-10-XX
-  All Rights Reserved.
 --]]
 
 --* Dependencies *--

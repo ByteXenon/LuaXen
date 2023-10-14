@@ -2,7 +2,6 @@
   Name: Helpers.lua
   Author: ByteXenon [Luna Gilbert]
   Date: 2023-08-XX
-  All Rights Reserved.
 ]]
 
 --* Export library functions *--

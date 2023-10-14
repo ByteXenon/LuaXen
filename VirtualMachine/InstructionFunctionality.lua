@@ -2,7 +2,6 @@
   Name: InstructionFunctionality.lua
   Author: Luna G. Davis & Evan L. P.
   Date: 2023-09-XX
-  All Rights Reserved.
 --]]
 
 --* Dependencies *--

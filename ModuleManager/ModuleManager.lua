@@ -2,7 +2,6 @@
   Name: ModuleManager.lua
   Author: ByteXenon [Luna Gilbert]
   Date: 2023-09-XX
-  All Rights Reserved.
 --]]
 
 local Aliases = require("ModuleManager/Aliases")

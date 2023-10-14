@@ -2,7 +2,6 @@
   Name: InstructionGenerator.lua
   Author: ByteXenon [Luna Gilbert]
   Date: 2023-09-XX
-  All Rights Reserved.
 --]]
 
 --* Dependencies *--
@@ -99,7 +98,16 @@ function InstructionGenerator:new(AST, luaState)
 
   function InstructionGeneratorInstance:processNode(node)
     local type = node.TYPE
-    if type == "LocalVariable" then
+    if type == "LocalFunction" then
+      local name = node.Name
+      local parameters = node.Parameters
+      local codeBlock = node.CodeBlock
+      
+      local protoLuaState = InstructionGenerator:new(node):processCodeBlock(node)
+      protoLuaState.parameters = parameters
+      
+      self.currentScopeState:addProto(name, protoLuaState)
+    elseif type == "LocalVariable" then
       local variables = node.Variables
       local expressions = node.Expressions
 
@@ -120,6 +128,24 @@ function InstructionGenerator:new(AST, luaState)
           self.currentScopeState:setLocal(localRegister, variableName.Value)
         end
       end
+    elseif type == "VariableAssignment" then
+      local variables = node.Variables
+      local expressions = node.Expressions
+      for index, expression in ipairs(expressions) do
+        local expressionReturnRegister = self:evaluateExpression(self.luaState.instructions, expression)
+        local variableName = variables[index].Value
+        local localVariable = self.currentScopeState.locals[variableName]
+        
+        self:deallocateRegister(expressionReturnRegister)
+        if not variableName then
+        elseif not localVariable then
+          self:addInstruction("SETGLOBAL", self:addConstant(variableName), expressionReturnRegister)
+        else -- This is a known local variable
+          self:addInstruction("MOVE", localVariable, expressionReturnRegister)
+        end
+      end
+    elseif type == "DoBlock" then
+      self:processCodeBlock(node.CodeBlock) 
     elseif type == "FunctionCall" then
       self:evaluateExpression(self.luaState.instructions, node)
     elseif type == "IfStatement" then
@@ -140,6 +166,8 @@ function InstructionGenerator:new(AST, luaState)
       self:processNode(node)
     end
     self.currentScopeState = oldScopeState
+
+    return self.luaState
   end
   function InstructionGeneratorInstance:run()
     self:processCodeBlock(self.AST)

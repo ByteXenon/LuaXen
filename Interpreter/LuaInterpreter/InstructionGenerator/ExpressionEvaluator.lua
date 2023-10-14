@@ -1,8 +1,7 @@
 --[[
   Name: ExpressionEvaluator.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-09-XX
-  All Rights Reserved.
+  Date: 2023-10-XX
 --]]
 
 --* Dependencies *--
@@ -18,7 +17,7 @@ local insert = table.insert
 
 --* ExpressionEvaluator *--
 local ExpressionEvaluator = {}
-function ExpressionEvaluator:new(instructionGenerator)
+function ExpressionEvaluator:new()
   local ExpressionEvaluatorInstance = {}
 
   local function addASTNumber(number) return { TYPE = "Number", Value = number } end
@@ -54,7 +53,6 @@ function ExpressionEvaluator:new(instructionGenerator)
     local function isANumberOrAConstant(left, right)
       return (left and (isANumber(left) or isAConstant(left))) and (not right or isANumberOrAConstant(right))
     end
-
 
     local type = expression.TYPE
     if type == "Operator" then
@@ -207,6 +205,8 @@ function ExpressionEvaluator:new(instructionGenerator)
       addInstruction(instructions, "GETTABLE", allocatedRegister, valueRegister, indexConstant)
       
       return allocatedRegister
+    elseif type == "Function" then
+      print(2)
     elseif type == "FunctionCall" then
       local arguments = expression.Arguments
       local functionExpression = expression.Expression
