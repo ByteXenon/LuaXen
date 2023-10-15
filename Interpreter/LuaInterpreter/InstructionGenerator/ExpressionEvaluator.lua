@@ -20,16 +20,6 @@ local ExpressionEvaluator = {}
 function ExpressionEvaluator:new()
   local ExpressionEvaluatorInstance = {}
 
-  local function addASTNumber(number) return { TYPE = "Number", Value = number } end
-  local function addASTString(str) return { TYPE = "String", Value = str } end
-  local function addASTConstant(value) return { TYPE = "Constant", Value = value } end
-  local function addASTFunctionCall(expression, arguments)
-    return { TYPE = "FunctionCall", Expression = expression, Arguments = arguments}
-  end
-  local function addASTOperator(value, left, right, operand)
-    return { TYPE = "Operator", Value = value, Left = left, Right = right, Operand = operand }
-  end
-
   local function addInstruction(instructions, opName, a, b, c)
     insert(instructions, { opName, a, b, c })
     return #instructions 
@@ -44,87 +34,8 @@ function ExpressionEvaluator:new()
       (c == false and oldInstruction[4]) or c 
     }
   end
-  local function compileTimeEvaluateExpression(expression)
-    local isANumber;
-    local isAConstant;
-    local isANumberOrAConstant;
-    local function isANumber(left, right) return (left and left.TYPE == "Number") and (not right or isANumber(right)) end
-    local function isAConstant(left, right) return (left and left.TYPE == "Constant") and (not right or isAConstant(right)) end
-    local function isANumberOrAConstant(left, right)
-      return (left and (isANumber(left) or isAConstant(left))) and (not right or isANumberOrAConstant(right))
-    end
-
-    local type = expression.TYPE
-    if type == "Operator" then
-      local value = expression.Value
-      local operand = expression.Operand
-      if operand then
-        local evaluatedOperand = compileTimeEvaluateExpression(operand)
-        if value == "#" and (evaluatedOperand.TYPE == "String" or evaluatedOperand.TYPE == "Table") then
-          if evaluatedOperand.TYPE == "Table" then
-            local elementCount = 0
-            for _ in pairs(evaluatedOperand.Values) do
-              elementCount = elementCount + 1
-            end
-
-            return addASTNumber(elementCount)
-          elseif evaluatedOperand.TYPE == "String" then
-            return addASTNumber(#evaluatedOperand.Value)
-          end
-        elseif value == "-" and isANumber(evaluatedOperand) then
-          return addASTNumber(-evaluatedOperand.Value)
-        end
-
-        -- Unsuported unary operator
-        return addASTOperator(value, nil, nil, evaluatedOperand)
-      end
-
-      local left = expression.Left
-      local right = expression.Right
-      local evaluatedLeft = compileTimeEvaluateExpression(left)
-      local evaluatedRight = compileTimeEvaluateExpression(right)
-   
-      if not isANumberOrAConstant(evaluatedLeft, evaluatedRight) then
-        return addASTOperator(value, evaluatedLeft, evaluatedRight)
-      end
-
-      if value == "and" then
-        local result = (evaluatedLeft.Value and evaluatedRight.Value)
-        if not result or result == true then return addASTConstant(result) end     
-        return addASTNumber(result)
-      elseif value == "or" then
-        local result = (evaluatedLeft.Value or evaluatedRight.Value)
-        if not result or result == true then return addASTConstant(result) end
-        return addASTNumber(result)
-      end
-
-      if not isANumber(evaluatedLeft, evaluatedRight) then
-        return addASTOperator(value, evaluatedLeft, evaluatedRight)
-      end
-      
-      if value == "+" then return addASTNumber(evaluatedLeft.Value + evaluatedRight.Value)
-      elseif value == "-" then return addASTNumber(evaluatedLeft.Value - evaluatedRight.Value)
-      elseif value == "/" then return addASTNumber(evaluatedLeft.Value / evaluatedRight.Value)
-      elseif value == "*" then return addASTNumber(evaluatedLeft.Value * evaluatedRight.Value)
-      elseif value == "^" then return addASTNumber(evaluatedLeft.Value ^ evaluatedRight.Value)
-      elseif value == "%" then return addASTNumber(evaluatedLeft.Value % evaluatedRight.Value)
-      end
-    elseif type == "FunctionCall" then
-      local arguments = expression.Arguments
-      local functionExpression = expression.Expression
-      for index, argument in ipairs(arguments) do
-        arguments[index] = compileTimeEvaluateExpression(argument)
-      end
-      local evaluatedFunctionExpression = compileTimeEvaluateExpression(functionExpression)
-      return addASTFunctionCall(evaluatedFunctionExpression, arguments)
-    end
-
-    return expression
-  end
 
   function ExpressionEvaluatorInstance:evaluateExpressionNode(instructions, expression, canReturnConstantIndex, isStatementContext)
-    local expression = compileTimeEvaluateExpression(expression);
-
     local type = expression.TYPE
     if type == "Operator" then
       local value = expression.Value
@@ -148,65 +59,88 @@ function ExpressionEvaluator:new()
 
         addInstruction(instructions, unaryOperators[value], allocatedRegister, operandRegister)
         return allocatedRegister
-      elseif value == "and" then
-        local leftRegister, generatedInstructions1 = self:evaluateExpression(instructions, left)
-
-        -- OP_TEST [A, C]    if not (R(A) <=> C) then pc++
-        addInstruction(instructions, "TEST", leftRegister, (value == "or" and 1) or 0)
-        local jumpInstructionIndex = addInstruction(instructions, "JMP", 1)
-        local rightRegister, generatedInstructions2 = self:evaluateExpression(instructions, right)
-
-        changeInstruction(instructions, jumpInstructionIndex, false, jumpInstructionIndex + (#generatedInstructions1 + #generatedInstructions2))
-        return rightRegister
-      elseif value == "or" then
+      elseif value == "and" or value == "or" then
         local leftRegister = self:evaluateExpression(instructions, left)
-        
+
         -- OP_TEST [A, C]    if not (R(A) <=> C) then pc++
         addInstruction(instructions, "TEST", leftRegister, (value == "or" and 1) or 0)
         local jumpInstructionIndex = addInstruction(instructions, "JMP", 1)
+        self:deallocateRegister(leftRegister)
+        local oldInstructionNumber = #instructions
         local rightRegister = self:evaluateExpression(instructions, right)
-        
-        changeInstruction(instructions, jumpInstructionIndex, false, #self.luaState.instructions + jumpInstructionIndex)
+        local newInstructionNumber = #instructions
+
+        changeInstruction(instructions, jumpInstructionIndex, false, (newInstructionNumber - oldInstructionNumber))
         return rightRegister
       elseif value == "==" or value == "~=" then
         local leftRegister = self:evaluateExpression(instructions, left, true)
         local rightRegister = self:evaluateExpression(instructions, right, true)
-
-        local allocatedRegister = self:allocateRegister()
         
+        self:deallocateRegisters({ leftRegister, rightRegister })
+        local allocatedRegister = self:allocateRegister()
+
         -- OP_EQ [A, B, C]    if ((RK(B) == RK(C)) ~= A) then pc++ 
-        addInstruction(instructions, "EQ", (value == "~=" and 0) or 1, leftRegister, rightRegister)
+        addInstruction(instructions, "EQ", (value == "==" and 1) or 0, leftRegister, rightRegister)
         addInstruction(instructions, "JMP", 1)
         
         -- OP_LOADBOOL [A, B, C]    R(A) := (Bool)B; if (C) pc++
         addInstruction(instructions, "LOADBOOL", allocatedRegister, 0, 1)
         addInstruction(instructions, "LOADBOOL", allocatedRegister, 1, 0)
         return allocatedRegister
+      elseif value == "<" or value == "<=" or value == ">" or value == ">=" then
+        local leftRegister = self:evaluateExpression(instructions, left, true)
+        local rightRegister = self:evaluateExpression(instructions, right, true)
+        if leftRegister >= 0 then self:deallocateRegister(leftRegister) end
+        if rightRegister >= 0 then self:deallocateRegister(rightRegister) end
+
+        if value == "<" or value == ">" then
+          -- OP_LT [A, B, C]    if ((RK(B) <  RK(C)) ~= A) then pc++
+          if value == "<" then
+            addInstruction(instructions, "LT", 0, leftRegister, rightRegister)
+          elseif value == ">" then
+            addInstruction(instructions, "LT", 0, rightRegister, leftRegister)
+          end
+        elseif value == "<=" or value == ">=" then
+          -- OP_LE [A, B, C]    if ((RK(B) <= RK(C)) ~= A) then pc++
+          if value == "<=" then
+            addInstruction(instructions, "LE", 0, leftRegister, rightRegister)
+          elseif value == ">=" then
+            addInstruction(instructions, "LE", 0, rightRegister, leftRegister)
+          end
+        end
+        -- Return none because it doens't have a register to return to.
+        return
       end
 
-      local leftRegister = self:evaluateExpression(instructions, left, true)
-      local rightRegister = self:evaluateExpression(instructions, right, true)
+      -- OP_CONCAT is the only operation that doesn't accept constants.
+      -- So stupid, but we must follow the official implementation
+      local canReturnConstant = (value ~= "..")
+      local leftRegister = self:evaluateExpression(instructions, left, canReturnConstant)
+      local rightRegister = self:evaluateExpression(instructions, right, canReturnConstant)
+      self:deallocateRegisters({ leftRegister, rightRegister })
+      
       local allocatedRegister = self:allocateRegister()
       
       local opName = arithmeticOperators[value]
-
       addInstruction(instructions, opName, allocatedRegister, leftRegister, rightRegister)
       return allocatedRegister
     elseif type == "Index" then
+      Helpers.PrintTable(expression)
       local index = expression.Index
-      local value = expression.Value
-      local valueRegister = self:evaluateExpression(instructions, value)
+      local expression = expression.Expression
+      local expressionRegister = self:evaluateExpression(instructions, expression)
       local indexConstant = self:evaluateExpression(instructions, index, true)
-      if indexConstant >= 0 then self:deallocateRegister(indexConstant) end
+      -- if indexConstant >= 0 then self:deallocateRegister(indexConstant) end
 
+      self:deallocateRegister(expressionRegister)
+      if indexConstant >= 0 then self:deallocateRegister(indexConstant) end
       local allocatedRegister = self:allocateRegister()
       
       -- OP_GETGLOBAL [A, Bx]    R(A) := Gbl[Kst(Bx)]
-      addInstruction(instructions, "GETTABLE", allocatedRegister, valueRegister, indexConstant)
+      addInstruction(instructions, "GETTABLE", allocatedRegister, expressionRegister, indexConstant)
       
       return allocatedRegister
     elseif type == "Function" then
-      print(2)
     elseif type == "FunctionCall" then
       local arguments = expression.Arguments
       local functionExpression = expression.Expression
@@ -261,9 +195,9 @@ function ExpressionEvaluator:new()
     end 
   end
 
-  function ExpressionEvaluatorInstance:evaluateExpression(instructions, expression, noInsert)
+  function ExpressionEvaluatorInstance:evaluateExpression(instructions, expression, canReturnConstantIndex, noInsert)
     local generatedInstructions = {};
-    local returnRegister = self:evaluateExpressionNode(generatedInstructions, expression)
+    local returnRegister = self:evaluateExpressionNode(generatedInstructions, expression, canReturnConstantIndex)
 
     if not noInsert then
       for _, instruction in pairs(generatedInstructions) do

@@ -7,6 +7,8 @@
 local NodeSpecs = {
   Operator            = { Left        = "Node",         Right       = "Node" },
   UnaryOperator       = { Operand     = "Node" },
+  Expression          = { Value       = "Node" },
+  
   FunctionCall        = { Expression  = "Node",         Arguments   = "NodeList" },
   MethodCall          = { Expression  = "Node",         Arguments   = "NodeList" },
   Identifier          = { Value       = "Value" },

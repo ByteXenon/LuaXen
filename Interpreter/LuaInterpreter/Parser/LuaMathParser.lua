@@ -193,7 +193,10 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
     local expression = self:parseExpression()
     luaParser.currentTokenIndex = self.currentTokenIndex - ((self.unexpectedEnd and 1) or 0)
     luaParser.currentToken = luaParser.tokens[luaParser.currentTokenIndex]
-
+    
+    if expression then
+      return luaParser:createExpressionNode(expression)
+    end
     return expression
   end;
 

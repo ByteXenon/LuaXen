@@ -24,23 +24,28 @@ function InstructionGenerator:new(AST, luaState)
   InstructionGeneratorInstance.luaState = luaState or LuaState:new()
   InstructionGeneratorInstance.AST = AST
   InstructionGeneratorInstance.registers = {}
+  -- InstructionGeneratorInstance.latestAllocatedRegister;
   for i,v in pairs(ExpressionEvaluator:new()) do
     InstructionGeneratorInstance[i] = v
   end
 
   function InstructionGeneratorInstance:getFutureAllocatedRegister()
-    for i = 1, 255 do
+    for i = 0, 255 do
       if not self.registers[i] then return i end
     end
     --return #self.registers + 1
   end
   function InstructionGeneratorInstance:allocateRegister()
     local registerIndex = self:getFutureAllocatedRegister() -- In case we change the allocation method
-    --print(registerIndex, debug.traceback())
     self.registers[registerIndex] = true
+    -- self.latestAllocatedRegister = registerIndex
     return registerIndex
   end;
   function InstructionGeneratorInstance:deallocateRegister(registerIndex)
+    if not registerIndex then return end
+    -- We don't deallocate constants
+    if registerIndex < 0 then return end
+
     self.registers[registerIndex] = nil
   end;
   function InstructionGeneratorInstance:deallocateRegisters(registers)
@@ -103,10 +108,15 @@ function InstructionGenerator:new(AST, luaState)
       local parameters = node.Parameters
       local codeBlock = node.CodeBlock
       
-      local protoLuaState = InstructionGenerator:new(node):processCodeBlock(node)
+      local protoLuaState = InstructionGenerator:new(node.CodeBlock):processCodeBlock(node.CodeBlock)
+      insert(protoLuaState.instructions, {"RETURN", 0, 1})
       protoLuaState.parameters = parameters
       
-      self.currentScopeState:addProto(name, protoLuaState)
+      local functionRegister = self.currentScopeState:addLocal(name)
+      insert(self.luaState.protos, protoLuaState)
+
+      -- R(A) := closure(KPROTO[Bx], R(A), ... ,R(A+n))
+      self:addInstruction("CLOSURE", functionRegister, #self.luaState.protos)
     elseif type == "LocalVariable" then
       local variables = node.Variables
       local expressions = node.Expressions
@@ -147,16 +157,33 @@ function InstructionGenerator:new(AST, luaState)
     elseif type == "DoBlock" then
       self:processCodeBlock(node.CodeBlock) 
     elseif type == "FunctionCall" then
-      self:evaluateExpression(self.luaState.instructions, node)
+      local returnRegister = self:evaluateExpression(self.luaState.instructions, node)
+      self:deallocateRegister(returnRegister)
     elseif type == "IfStatement" then
-      local typeOfCheck = node.Statement.TYPE
-      if typeOfCheck == "Operator" then
-        typeOfCheck = node.Statement.Value
+      local conditionReturnRegister, conditionInstructions = self:evaluateExpression(self.luaState.instructions, node.Condition)
+      local conditionValue = node.Condition.Value
+      if conditionValue == ">" or conditionValue == "<" or conditionValue == ">=" or conditionValue == "<=" then
+        -- Don't touch it, it already has a check
+      else
+        -- OP_TEST [A, C]    if not (R(A) <=> C) then pc++
+        self:addInstruction("TEST", conditionReturnRegister, 0)
       end
-      
-      local returnRegister, statementInstructions = self:evaluateExpression(self.luaState.instructions, node.Statement)
-      self:addInstruction("TEST", returnRegister, 0, 0)
-      self:addInstruction("JMP", (#node.Elseifs == 0 and 0))
+      local jmpInstruction = self:addInstruction("JMP", 0)
+      local oldInstructionNumber = #self.luaState.instructions
+      local codeBlockInstructions = self:processCodeBlock(node.CodeBlock)
+      local newInstructionNumber = #self.luaState.instructions
+      self:changeInstruction(jmpInstruction, "JMP", newInstructionNumber - oldInstructionNumber )
+    elseif type == "ReturnStatement" then
+      local startRegister;
+      local returnRegisters = {}
+      for index, node in ipairs(node.Expressions) do
+        local returnRegister = self:evaluateExpression(self.luaState.instructions, node)
+        startRegister = startRegister or returnRegister 
+        insert(returnRegisters,returnRegister) 
+      end
+
+      -- OP_RETURN [A, B]    return R(A), ... ,R(A+B-2)
+      self:addInstruction("RETURN", startRegister, startRegister + #returnRegisters + 1)
     end
   end;
   function InstructionGeneratorInstance:processCodeBlock(codeBlockNode)

@@ -1,0 +1,40 @@
+{
+  [1] = table: 0x55a44e135ff0 {
+    [Variables] = table: 0x55a44e18d280 {
+      [1] = table: 0x55a44e18c760 {
+        [Value] = a
+        [TYPE] = Identifier
+      }
+    }
+    [TYPE] = LocalVariable
+    [Expressions] = table: 0x55a44e136040 {
+      [1] = table: 0x55a44e135f20 {
+        [Value] = table: 0x55a44e135c80 {
+          [TYPE] = Operator
+          [Value] = +
+          [Right] = table: 0x55a44e18cc70 {
+            [Value] = 3
+            [TYPE] = Number
+          }
+          [Left] = table: 0x55a44e135a90 {
+            [TYPE] = Operator
+            [Value] = +
+            [Right] = table: 0x55a44e18cac0 {
+              [Value] = 2
+              [TYPE] = Number
+            }
+            [Left] = table: 0x55a44e18c8d0 {
+              [Value] = 1
+              [TYPE] = Number
+            }
+            [Precedence] = 5
+          }
+          [Precedence] = 5
+        }
+        [TYPE] = Expression
+      }
+      [TYPE] = Group
+    }
+  }
+}
+Group

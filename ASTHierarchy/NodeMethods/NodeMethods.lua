@@ -6,27 +6,16 @@
 
 --* Dependencies *--
 local ModuleManager = require("ModuleManager/ModuleManager"):newFile("ASTHierarchy/NodeMethods/NodeMethods")
+local Helpers = ModuleManager:loadModule("Helpers/Helpers")
+
 local NodeMethodsFunctions = ModuleManager:loadModule("ASTHierarchy/NodeMethods/NodeMethodsFunctions")
+local NodeSpecs = ModuleManager:loadModule("ASTHierarchy/NodeSpecs")
 
 --* NodeMethods *--
-local NodeMethods = {
-  Operator            = { }, UnaryOperator       = { },
-  FunctionCall        = { }, MethodCall          = { },
-  Identifier          = { }, Constant            = { },
-  Number              = { },
-  String              = { }, Index               = { },
-  MethodIndex         = { }, Table               = { },
-  TableElement        = { }, Function            = { },
-  FunctionDeclaration = { }, MethodDeclaration   = { },
-  LocalFunction       = { }, VariableAssignment  = { },
-  LocalVariable       = { }, IfStatement         = { },
-  ElseIfStatement     = { }, ElseStatement       = { },
-  UntilLoop           = { }, DoBlock             = { },
-  WhileLoop           = { }, ReturnStatement     = { },
-  ContinueStatement   = { }, BreakStatement      = { },
-  GenericFor          = { }, NumericFor          = { },
-  AST                 = { }
-}
+local NodeMethods = { AST = {}, Group = {} }
+for index in pairs(NodeSpecs) do
+  NodeMethods[index] = {}
+end
 
 local function createNodeMethod(nodeType, methodIndex, func)
   if nodeType == "_Default" then

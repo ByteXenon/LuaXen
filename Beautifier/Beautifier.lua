@@ -30,16 +30,10 @@ end
 
 --* Beautifier *--
 local Beautifier = {}
-function Beautifier:new(codeOrAST)
+function Beautifier:new(astHierarchy)
   local BeautifierInstance = {}
-  BeautifierInstance.ast = codeOrAST
+  BeautifierInstance.ast = astHierarchy
   BeautifierInstance.indentationLevel = 0;
-
-  if type(codeOrAST) == "string" then
-    local Tokens = Lexer:new(Code):tokenize()
-    local AST = Parser:new(Tokens):parse()
-    BeautifierInstance.ast = AST
-  end
 
   function BeautifierInstance:addSpaces(n)
     return rep("  ", self.indentationLevel + (n or 0))
@@ -65,6 +59,9 @@ function Beautifier:new(codeOrAST)
   
   function BeautifierInstance:processNode(node, isInCodeBlock)
     local nodeType = node.TYPE
+    if nodeType == "Expression" or nodeType == "AST" or nodeType == "Group" then
+      return self:processNode(node.Value, isInCodeBlock)
+    end
     local currentIndentation = self:addSpaces()
     local codeBlock = (node.CodeBlock and self:processCodeBlock(node.CodeBlock, 1))
     local formatTable = {
@@ -72,6 +69,7 @@ function Beautifier:new(codeOrAST)
       codeBlockIndentation = (isInCodeBlock and currentIndentation) or "",
       postCodeBlockIndentation = (codeBlock == " " and "") or currentIndentation,
 
+      name = node.Name,
       value = (node.Value),
       index = (node.Index and self:processNode(node.Index)),
       expression = (node.Expression and self:processNode(node.Expression)),
@@ -99,7 +97,7 @@ function Beautifier:new(codeOrAST)
 
     return stringFormat(nodeStringTemplate, formatTable)
   end
-  function BeautifierInstance:processCodeBlock(codeBlock, indentationLevel)
+  function BeautifierInstance:processCodeBlock(codeBlock, indentationLevel, isMainBlock)
     if indentationLevel then self:increaseIndentation(indentationLevel) end
 
     local lines = {}
@@ -110,11 +108,12 @@ function Beautifier:new(codeOrAST)
 
     if indentationLevel then self:decreaseIndentation(indentationLevel) end
     if #lines == 0 then return " " end
+    if isMainBlock then return concat(lines, "\n") end
     return "\n" .. concat(lines, "\n") .. "\n"
   end
 
   function BeautifierInstance:run()
-    return self:processCodeBlock(self.ast)
+    return self:processCodeBlock(self.ast, nil, true)
   end
 
   return BeautifierInstance

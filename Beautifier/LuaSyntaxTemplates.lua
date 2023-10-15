@@ -44,6 +44,7 @@ local stringTemplates = {
   MethodIndex = "{codeBlockIdentation}{index}:{expression}",
 
   Function = "{codeBlockIndentation}function({parameters}){codeBlock}{postCodeBlockIndentation}end",
+  LocalFunction = "{codeBlockIndentation}local function {name}({parameters}){codeBlock}{postCodeBlockIndentation}end"
   -- MethodCall = "{codeBlockIdentation}"
   -- FunctionCall = "{codeBlockIndentation}{expression}({parameters})"
 }

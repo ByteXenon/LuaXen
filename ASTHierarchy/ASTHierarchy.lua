@@ -27,7 +27,7 @@ function ASTHierarchy:new(AST)
     local nodeType = node.TYPE
     local nodeSpec = NodeSpecs[nodeType]
 
-    if nodeType == "AST" then
+    if nodeType == "AST" or nodeType == "Group" then
       for index, childNode in ipairs(node) do
         self:transformNode(childNode, node, index)
       end

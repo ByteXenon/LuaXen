@@ -133,9 +133,10 @@ function Parser:new(tokens)
   function ParserInstance:areValidCodeBlockExpressions(expressions)
     if not expressions then return end
     if not expressions[1] then return end
+    
     if #expressions == 1 then
-      if expressions[1].TYPE == "FunctionCall" then return true
-      elseif expressions[1].TYPE == "MethodCall" then return true end
+      if expressions[1].Value.TYPE == "FunctionCall" then return true
+      elseif expressions[1].Value.TYPE == "MethodCall" then return true end
     end
 
     for _, value in ipairs(expressions) do
@@ -168,8 +169,8 @@ function Parser:new(tokens)
         return error(("Unexpected node: %s (Perhaps you forgot to place a ';' there?)"):format(stringifyTable(codeBlockExpressions)))
       end
 
-      if codeBlockExpressions[1].TYPE == "FunctionCall" or codeBlockExpressions[1].TYPE == "MethodCall" then
-        returnValue = codeBlockExpressions[1]
+      if codeBlockExpressions[1].Value.TYPE == "FunctionCall" or codeBlockExpressions[1].Value.TYPE == "MethodCall" then
+        returnValue = codeBlockExpressions[1].Value
       else
         self:consume() -- Consume the last variable token
         returnValue = self:__VariableAssignment(codeBlockExpressions)

@@ -25,6 +25,26 @@ local Identifier = {}
 function _Default:getType(node)   return node.TYPE    end
 -- Get the parent of the node
 function _Default:getParent(node) return node.Parent end
+-- Remove node from its parent
+function _Default:remove(node)
+  local parent = node.Parent
+  local index = node.ChildIndex
+  if not parent or not index then return end
+  local parentType = parent.TYPE
+  if parentType == "AST" or parentType == "Group" then
+    local indexCounter = 1
+    local newTb = {}
+    for childIndex, childNode in ipairs(node.Parent) do
+      if childIndex ~= index then
+        node.Parent[indexCounter] = childNode
+        indexCounter = indexCounter + 1
+      end
+    end
+    node.Parent[indexCounter] = nil
+  else
+    node.Parent[index] = nil
+  end
+end
 -- Get children of the node
 function _Default:getChildren(node)
   local nodeType = node.TYPE
