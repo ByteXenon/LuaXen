@@ -39,7 +39,7 @@ function Pass2:new(astHierarchy)
     self:removeDeadCode()
     return self.ast
   end
-  
+
   return Pass2Instance
 end
 

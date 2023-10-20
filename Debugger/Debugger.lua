@@ -1,7 +1,7 @@
 --[[
   Name: Debugger.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-09-XX
+  Date: 2023-10-XX
 --]]
 
 --* Dependencies *--
@@ -9,7 +9,7 @@ local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Debugger/D
 local Helpers = ModuleManager:loadModule("Helpers/Helpers")
 
 --* Export library functions *--
-local createTableDecorator = Helpers.CreateTableDecorator 
+local createTableDecorator = Helpers.CreateTableDecorator
 local insert = table.insert
 local concat = table.concat
 local find = table.find or Helpers.TableFind
@@ -24,7 +24,7 @@ local function hookMethods(class, debugInfo)
     local logType = v.logType
     classDecorator:__AddEvent(event, function(self, index, value)
       if index:sub(0, #"__Debug") == "__Debug" then return end
-      insert(class.__Debug_log[logType], { 
+      insert(class.__Debug_log[logType], {
         Index = index,
         Value = value or class[index],
         Traceback = debug.traceback()
@@ -48,14 +48,14 @@ function Debugger:injectDebugger(class)
         end
       end
     end
-    
+
     formatLog("Calls")
     formatLog("Index")
     formatLog("NewIndex")
-  
+
     return concat(lines, "\n")
   end
-  
+
   function class:__Debug_saveLogToFile(fileName)
     local file = io.open(fileName, "w")
     file:write(self:__Debug_getLog())
@@ -66,7 +66,7 @@ function Debugger:injectDebugger(class)
     print("Printing Debug Log:")
     print(self:__Debug_getLog())
   end
-  
+
 
   local classDecorator = hookMethods(class, {{event = "Index", logType = "Index"}, {event = "NewIndex", logType = "NewIndex"}})
 

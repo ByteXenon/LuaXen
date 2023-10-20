@@ -13,14 +13,31 @@ local stringifyTable = Helpers.StringifyTable
 local find = table.find or Helpers.TableFind
 local insert = table.insert
 
+--* Local functions *--
+local function addInstruction(instructions, opName, a, b, c)
+  insert(instructions, { opName, a, b, c })
+  return #instructions
+end
+local function changeInstruction(instructions, instructionIndex, opName, a, b, c)
+  local oldInstruction = instructions[instructionIndex]
+
+  instructions[instructionIndex] = {
+    (opName == false and oldInstruction[1]) or opName,
+    (a == false and oldInstruction[2]) or a,
+    (b == false and oldInstruction[3]) or b,
+    (c == false and oldInstruction[4]) or c
+  }
+end
+
+
 --* ExpressionToInstructionsConverter *--
 local ExpressionToInstructionsConverter = {}
-function ExpressionToInstructionsConverter:Operator(expression)
+function ExpressionToInstructionsConverter:__Expression_Operator(instructions, expression, canReturnConstantIndex, isStatementContext)
   local value = expression.Value
   local left = expression.Left
   local right = expression.Right
   local operand = expression.Operand
-  
+
   local unaryOperators = {
     ["-"] = "UNM", ["#"] = "LEN"
   }
@@ -53,14 +70,14 @@ function ExpressionToInstructionsConverter:Operator(expression)
   elseif value == "==" or value == "~=" then
     local leftRegister = self:evaluateExpression(instructions, left, true)
     local rightRegister = self:evaluateExpression(instructions, right, true)
-    
+
     self:deallocateRegisters({ leftRegister, rightRegister })
     local allocatedRegister = self:allocateRegister()
 
-    -- OP_EQ [A, B, C]    if ((RK(B) == RK(C)) ~= A) then pc++ 
+    -- OP_EQ [A, B, C]    if ((RK(B) == RK(C)) ~= A) then pc++
     addInstruction(instructions, "EQ", (value == "==" and 1) or 0, leftRegister, rightRegister)
     addInstruction(instructions, "JMP", 1)
-    
+
     -- OP_LOADBOOL [A, B, C]    R(A) := (Bool)B; if (C) pc++
     addInstruction(instructions, "LOADBOOL", allocatedRegister, 0, 1)
     addInstruction(instructions, "LOADBOOL", allocatedRegister, 1, 0)
@@ -96,14 +113,14 @@ function ExpressionToInstructionsConverter:Operator(expression)
   local leftRegister = self:evaluateExpression(instructions, left, canReturnConstant)
   local rightRegister = self:evaluateExpression(instructions, right, canReturnConstant)
   self:deallocateRegisters({ leftRegister, rightRegister })
-  
+
   local allocatedRegister = self:allocateRegister()
-  
+
   local opName = arithmeticOperators[value]
   addInstruction(instructions, opName, allocatedRegister, leftRegister, rightRegister)
   return allocatedRegister
 end
-function ExpressionToInstructionsConverter:Index(expression)
+function ExpressionToInstructionsConverter:__Expression_Index(instructions, expression, canReturnConstantIndex, isStatementContext)
   local index = expression.Index
   local expression = expression.Expression
   local expressionRegister = self:evaluateExpression(instructions, expression)
@@ -113,15 +130,15 @@ function ExpressionToInstructionsConverter:Index(expression)
   self:deallocateRegister(expressionRegister)
   if indexConstant >= 0 then self:deallocateRegister(indexConstant) end
   local allocatedRegister = self:allocateRegister()
-  
+
   -- OP_GETGLOBAL [A, Bx]    R(A) := Gbl[Kst(Bx)]
   addInstruction(instructions, "GETTABLE", allocatedRegister, expressionRegister, indexConstant)
-  
+
   return allocatedRegister
 end
-function ExpressionToInstructionsConverter:Function(expression)
+function ExpressionToInstructionsConverter:__Expression_Function(instructions, expression, canReturnConstantIndex, isStatementContext)
 end
-function ExpressionToInstructionsConverter:FunctionCall(expression)
+function ExpressionToInstructionsConverter:__Expression_FunctionCall(instructions, expression, canReturnConstantIndex, isStatementContext)
   local arguments = expression.Arguments
   local functionExpression = expression.Expression
 
@@ -140,12 +157,12 @@ function ExpressionToInstructionsConverter:FunctionCall(expression)
   if not isStatementContext then
     -- if the function call doesn't return more than 1 value, then deallocate all
     -- argument registers because they're not needed anymore
-    self:deallocateRegisters(tempRegisters) 
+    self:deallocateRegisters(tempRegisters)
   end
 
   return functionExpressionRegister
 end
-function ExpressionToInstructionsConverter:Identifier(expression)
+function ExpressionToInstructionsConverter:__Expression_Identifier(instructions, expression, canReturnConstantIndex, isStatementContext)
   local value = expression.Value
   -- Check if this is a variable
   local localRegister = self.currentScopeState:findLocal(value)
@@ -155,11 +172,11 @@ function ExpressionToInstructionsConverter:Identifier(expression)
   end
   local allocatedRegister = self:allocateRegister()
   local constantIndex = self:addConstant(expression.Value)
-  
+
   addInstruction(instructions, "GETGLOBAL", allocatedRegister, constantIndex)
   return allocatedRegister
 end
-function ExpressionToInstructionsConverter:String(expression)
+function ExpressionToInstructionsConverter:__Expression_String(instructions, expression, canReturnConstantIndex, isStatementContext)
   local value = expression.Value
   local constantIndex = self:addConstant(value)
   if canReturnConstantIndex then return constantIndex end
@@ -168,10 +185,10 @@ function ExpressionToInstructionsConverter:String(expression)
   addInstruction(instructions, "LOADK", allocatedRegister, constantIndex)
   return allocatedRegister
 end
-function ExpressionToInstructionsConverter:Number(expression)
-  return self:String(expression)
+function ExpressionToInstructionsConverter:__Expression_Number(instructions, expression, canReturnConstantIndex, isStatementContext)
+  return self:__Expression_String(instructions, expression, canReturnConstantIndex, isStatementContext)
 end
-function ExpressionToInstructionsConverter:Constant(expression)
+function ExpressionToInstructionsConverter:__Expression_Constant(instructions, expression, canReturnConstantIndex, isStatementContext)
   local value = expression.Value
   local allocatedRegister = self:allocateRegister()
   if value == "nil" then addInstruction(instructions, "LOADNIL",  allocatedRegister, allocatedRegister)
@@ -179,6 +196,6 @@ function ExpressionToInstructionsConverter:Constant(expression)
     addInstruction(instructions, "LOADBOOL", allocatedRegister, value == "true" and 1 or 0, 0)
   end
   return allocatedRegister
-end 
+end
 
 return ExpressionToInstructionsConverter

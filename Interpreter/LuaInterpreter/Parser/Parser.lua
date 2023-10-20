@@ -34,7 +34,7 @@ function Parser:new(tokens)
   end
 
   function ParserInstance:peek(n)
-    -- Place "EOF" just in case so the script wouldn't error on an 
+    -- Place "EOF" just in case so the script wouldn't error on an
     -- unexpected end of tokens, instead it will output the native error function
     return self.tokens[self.currentTokenIndex + (n or 1)]  or { TYPE = "EOF" }
   end
@@ -52,7 +52,7 @@ function Parser:new(tokens)
       if self:compareTokenValueAndType(token, pair[1], pair[2]) then return true end
     end
     return false
-  end 
+  end
   function ParserInstance:isClosingParenthesis(token)
     return token.TYPE == "Character" and token.Value == ")"
   end
@@ -77,7 +77,7 @@ function Parser:new(tokens)
   function ParserInstance:expectNextTokenAndConsume(tokenType, tokenValue)
     self:expectNextToken(tokenType, tokenValue)
     return self:consume()
-  end 
+  end
   function ParserInstance:isTable()
     local token = self.currentToken
     return token and token.TYPE == "Character" and token.TYPE == "{"
@@ -105,20 +105,20 @@ function Parser:new(tokens)
 
     if #expressions == 0 then return expressions end
     if self:compareTokenValueAndType(self:peek(), "Character", ",") then
-      while self:compareTokenValueAndType(self:peek(), "Character", ",") do 
+      while self:compareTokenValueAndType(self:peek(), "Character", ",") do
         if maxAmount and #expressions >= maxAmount then break end
         self:consume() -- Consume the last token of the last expression
         self:consume() -- Consume ","
         insert(expressions, self:consumeExpression(false))
       end
     end
-    
+
     return expressions
   end
   function ParserInstance:consumeMultipleIdentifiers(oneOrMore)
     local identifiers = {}
     if oneOrMore then self:expectCurrentToken("Identifier") end
-  
+
     while self:compareTokenValueAndType(self.currentToken, "Identifier") do
       local identifier = self.currentToken
       insert(identifiers, identifier)
@@ -127,13 +127,13 @@ function Parser:new(tokens)
       end
       self:consume()
     end
-    
+
     return identifiers
   end
   function ParserInstance:areValidCodeBlockExpressions(expressions)
     if not expressions then return end
     if not expressions[1] then return end
-    
+
     if #expressions == 1 then
       if expressions[1].Value.TYPE == "FunctionCall" then return true
       elseif expressions[1].Value.TYPE == "MethodCall" then return true end
@@ -143,13 +143,13 @@ function Parser:new(tokens)
       if value.Value.TYPE == "Identifier" or value.Value.TYPE == "Index" then
       else return false end
     end
-    return true 
+    return true
   end
 
   function ParserInstance:getNextNode(stopKeywords)
     local currentToken = self.currentToken
     local value, type = currentToken.Value, currentToken.TYPE
-    
+
     local returnValue;
     if type == "Keyword" then
       if stopKeywords and find(stopKeywords, value) then

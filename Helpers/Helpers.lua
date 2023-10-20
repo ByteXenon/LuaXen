@@ -1,7 +1,7 @@
 --[[
   Name: Helpers.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-08-XX
+  Date: 2023-10-XX
 ]]
 
 --* Export library functions *--
@@ -112,7 +112,7 @@ end
 
 -- Apparently Lua stops at gaps in tables
 -- so table {1, nil, 3, 4} would have length of 1
--- my method is slower but better. 
+-- my method is slower but better.
 function Helpers.TableLen(Table)
   local TableLength = 0
   for Index, Value in pairs(Table) do
@@ -145,7 +145,7 @@ function Helpers.StringifyTable(Table, Spacing)
   local VisitTable, VisitTableValue;
   local function VisitTableElement(Lines, Indentation, Index, Value)
     local FormatString = (type(Value) == "table" and "%s[%s] = %s {") or "%s[%s] = %s";
-      
+
     local CurrentIndentation = rep(SpacingString, Indentation)
     insert(Lines, FormatString:format(CurrentIndentation, tostring(Index), tostring(Value)))
     if type(Value) == "table" then
@@ -160,14 +160,14 @@ function Helpers.StringifyTable(Table, Spacing)
       -- Terminate any possibility of an infinite recursion
       return rep(SpacingString, Indentation) .. "<Repeated table>"
     end
-    
+
     VisitedTables[Table] = VisitedTables[Table] and VisitedTables[Table] + 1 or 0
 
     local Lines = {}
     for Index, Value in pairs(Table) do
       VisitTableElement(Lines, Indentation, Index, Value)
     end
-    
+
     return concat(Lines, "\n")
   end
 
@@ -178,7 +178,7 @@ end
 function Helpers.SerializeValue(Value)
   local Value = Value
   local ValueType = type(Value)
-  
+
   if ValueType == "string" then
     return "'" .. Value .. "'"
   elseif ValueType == "number" then
@@ -190,7 +190,7 @@ function Helpers.SerializeValue(Value)
   end
 end
 
--- 
+--
 function Helpers.TableToPrettyString(tableData)
   local SerializeValue = Helpers.SerializeValue
 
@@ -304,11 +304,11 @@ end
 -- Python-like string format function
 function Helpers.StringFormat(String, ...)
   local Args = {...}
-  
+
   local String = gsub(String, "{([\1-\124\126-\255]+)}", function(FormatValue)
     local Number = tonumber(FormatValue)
     if Number then
-      local ArgValue = tostring(Args[Number + 1] or 'nil') 
+      local ArgValue = tostring(Args[Number + 1] or 'nil')
       return ArgValue
     end
     return FormatValue
@@ -343,7 +343,7 @@ function Helpers.SerializeValue(value)
   elseif valueType == "function" then
     return "function()" .. Helpers.StringifyTable(debug.getinfo(value))
   end
-  
+
   return tostring(value)
 end
 --
@@ -360,7 +360,7 @@ end
 
 -- Unfortunately Lua won't let you access
 -- individual characters by using MyString[2],
--- like in tables. This function fixes that 
+-- like in tables. This function fixes that
 function Helpers.StringToTable(String)
   local Table = {}
   local index = 1
@@ -409,7 +409,7 @@ end
 -- Combine multiple tables and returns a function that retrieves a value based on the given key.
 function Helpers.MergeTableGetters(...)
   local tables = {...}
-  
+
   return function(_, key, ...)
     -- Iterate over each table in the merged tables.
     for _, tbl in ipairs(tables) do
@@ -430,7 +430,7 @@ function Helpers.SetNewProxy(methods)
   for index, value in pairs(methods) do
     proxy_mt[index] = value
   end
-  
+
   return proxy
 end
 
@@ -443,7 +443,7 @@ function Helpers.CreateTableDecorator(OriginalTable)
     NewIndex = {};
     Call = {};
   }
-  -- Hook table which replace entire methods 
+  -- Hook table which replace entire methods
   local Hooks = {}
 
   -- A function to execute all callback functions in a event pool
@@ -458,7 +458,7 @@ function Helpers.CreateTableDecorator(OriginalTable)
   BuiltinMethods.__EventPool = EventPool
   BuiltinMethods.__ExecuteEventPool = ExecuteEventPool
 
-  -- A function to add a callback function to a event pool  
+  -- A function to add a callback function to a event pool
   function BuiltinMethods.__AddEvent(self, OnEvent, CallbackFunction)
     if not EventPool[OnEvent] then return end
     table.insert(EventPool[OnEvent], CallbackFunction)
@@ -473,7 +473,7 @@ function Helpers.CreateTableDecorator(OriginalTable)
   -- A custom proxy table which redirects all methods
   -- to an original table
   local MyProxy = Helpers.SetNewProxy({
-    __index = function(self, index) 
+    __index = function(self, index)
       if BuiltinMethods[index] then
         return BuiltinMethods[index]
       elseif Hooks["Index"] then
@@ -526,7 +526,7 @@ end;
 function Helpers.MakeAppendOnly(table, tableName)
   local newProxy = Helpers.SetNewProxy{
     __newindex = function(self, index, value)
-      
+
     end;
   }
 end;
@@ -563,16 +563,16 @@ function Helpers.NewClass(baseClass)
       };
       __shareObjects__ = function(self, ...)
         local objects = {...}
-        for _, object in ipairs(objects) do 
+        for _, object in ipairs(objects) do
           if not Helpers.TableFind(sharedObjects, object) then
             table.insert(sharedObjects, object)
           end;
         end
-        classInstanceMt.__index = Helpers.MergeTableGetters(unpack(sharedObjects))    
+        classInstanceMt.__index = Helpers.MergeTableGetters(unpack(sharedObjects))
       end;
       __raw__ = rawSuperClass
     }
- 
+
     sharedObjects = {classProperties, newTable, baseClass, rawSuperClass}
 
     classInstanceMt.__index = Helpers.MergeTableGetters(unpack(sharedObjects))

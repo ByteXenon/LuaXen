@@ -34,7 +34,7 @@ function NodeTokenTemplates:Constant(tokens, node)
 end
 function NodeTokenTemplates:Operator(tokens, node, previousPrecedence)
   local currentPrecedence = node.Precedence
-  local placeParentheses = previousPrecedence and (currentPrecedence < previousPrecedence) 
+  local placeParentheses = previousPrecedence and (currentPrecedence < previousPrecedence)
   if placeParentheses then
     insert(tokens, self:newCharacter("("))
   end
@@ -184,10 +184,10 @@ end
 function NodeTokenTemplates:FunctionCall(tokens, node)
   local expression = node.Expression
   local arguments = node.Arguments
-  
+
   if expression.TYPE ~= "Identifier" and expression.TYPE ~= "Index" then
     insert(tokens, self:newCharacter("("))
-  end 
+  end
   insertTokensFromList(tokens, self:tokenizeNode(expression))
   if expression.TYPE ~= "Identifier" and expression.TYPE ~= "Index" then
     insert(tokens, self:newCharacter(")"))
@@ -202,10 +202,10 @@ end
 function NodeTokenTemplates:MethodCall(tokens, node)
   local expression = node.Expression
   local arguments = node.Arguments
-  
+
   if expression.TYPE ~= "Identifier" and expression.TYPE ~= "Index" and expression.TYPE ~= "MethodIndex" then
     insert(tokens, self:newCharacter("("))
-  end 
+  end
   insertTokensFromList(tokens, self:tokenizeNode(expression))
   if expression.TYPE ~= "Identifier" and expression.TYPE ~= "Index" and expression.TYPE ~= "MethodIndex" then
     insert(tokens, self:newCharacter(")"))

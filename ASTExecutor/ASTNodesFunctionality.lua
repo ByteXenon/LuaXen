@@ -21,10 +21,14 @@ function ASTNodesFunctionality:new(ASTExecutor)
 
   function ASTNodesFunctionalityInstance:executeNode(node, isInCodeBlock)
     local nodeType = node.TYPE
+    if nodeType == "Expression" then
+      node = node.Value
+      nodeType = node.TYPE
+    end
     if self[nodeType] then
       return self[nodeType](self, node, isInCodeBlock)
     end
-    
+
     error("Invalid node: " .. stringifyTable(node))
   end
   function ASTNodesFunctionalityInstance:executeNodes(nodes, isInCodeBlock)
@@ -74,7 +78,7 @@ function ASTNodesFunctionality:new(ASTExecutor)
 
     local left = self:executeNode(node.Left)
     local right = self:executeNode(node.Right)
-    
+
     if     nodeValue == "and" then return left and right
     elseif nodeValue == "or"  then return left or  right
     elseif nodeValue == ".."  then return left ..  right
@@ -95,7 +99,7 @@ function ASTNodesFunctionality:new(ASTExecutor)
     local parameters = self:executeNodes(node.Arguments)
     local returnValues = {expression(unpack(parameters))}
     if isInCodeBlock then return end
-    
+
     return unpack(returnValues)
   end
   function ASTNodesFunctionalityInstance:Index(node, isInCodeBlock)
@@ -107,7 +111,7 @@ function ASTNodesFunctionality:new(ASTExecutor)
     local newFunction = (function(...)
       local parameters = node.Parameters
       local givenArguments = {...}
-      
+
       local oldLocals = self:copyLocals()
       local oldVarArg = self.varArg
 
@@ -143,7 +147,7 @@ function ASTNodesFunctionality:new(ASTExecutor)
     for _, element in ipairs(node.Elements) do
       local key = self:executeNode(element.Key)
       local value = self:executeNode(element.Value)
-      
+
       newTable[key] = value
     end
     return newTable
@@ -180,7 +184,7 @@ function ASTNodesFunctionality:new(ASTExecutor)
       local condition = self:executeNode(elseIfStatement.Condition)
       if condition then return self:executeCodeBlock(elseIfStatement.CodeBlock) end
     end
-    
+
     return self:executeCodeBlock(node.Else.CodeBlock or {})
   end
   function ASTNodesFunctionalityInstance:WhileLoop(node, isInCodeBlock)
@@ -205,14 +209,14 @@ function ASTNodesFunctionality:new(ASTExecutor)
       self:setLocalVariable(iteratorVar, index)
       self:executeCodeBlock(codeBlock)
     end
-    
+
     self.locals = oldLocals
   end
   function ASTNodesFunctionalityInstance:GenericFor(node, isInCodeBlock)
     -- Save old variables
     local oldLocals = self:copyLocals()
     local iteratorVars = node.IteratorVariables
-    
+
     local expressionReturnValues = {self:executeNode(node.Expression)}
     for index, value in unpack(expressionReturnValues) do
       self:setLocalVariable(iteratorVars[1], index)
@@ -221,7 +225,7 @@ function ASTNodesFunctionality:new(ASTExecutor)
       end
       self:executeCodeBlock(node.CodeBlock)
     end
-    
+
     -- Restore old local variables
     self.locals = oldLocals
   end

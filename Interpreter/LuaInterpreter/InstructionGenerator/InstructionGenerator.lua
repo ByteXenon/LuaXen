@@ -55,7 +55,7 @@ function InstructionGenerator:new(AST, luaState)
       self.registers[register] = nil
     end
   end
-  
+
   function InstructionGeneratorInstance:addConstant(newConstant)
     local constants = self.luaState.constants
     local constantIndex = find(constants, newConstant)
@@ -65,7 +65,7 @@ function InstructionGenerator:new(AST, luaState)
     end
     return -constantIndex
   end
-  
+
   function InstructionGeneratorInstance:addASTNumber(number)
     return { TYPE = "Number", Value = number }
   end
@@ -94,19 +94,19 @@ function InstructionGenerator:new(AST, luaState)
   end
   function InstructionGeneratorInstance:changeInstruction(instructionIndex, opName, a, b, c)
     local oldInstruction = self.luaState.instructions[instructionIndex]
-    
+
     self.luaState.instructions[instructionIndex] = {
       (opName == false and oldInstruction[1]) or opName,
       (a == false and oldInstruction[2]) or a,
       (b == false and oldInstruction[3]) or b,
-      (c == false and oldInstruction[4]) or c 
+      (c == false and oldInstruction[4]) or c
     }
   end
 
   function InstructionGeneratorInstance:processNode(node)
     local type = node.TYPE
-    if self[type] then
-      return self[type](self, node)
+    if self["__CodeBlock_" .. type] then
+      return self["__CodeBlock_" .. type](self, node)
     else
       return error("Unsupported node type: " .. type)
     end
@@ -124,7 +124,7 @@ function InstructionGenerator:new(AST, luaState)
   function InstructionGeneratorInstance:run()
     self:processCodeBlock(self.AST)
     self:addInstruction("RETURN", 0, 1)
-    
+
     return self.luaState
   end
 

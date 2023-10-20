@@ -1,7 +1,7 @@
 --[[
   Name: OPCodes.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-09-XX
+  Date: 2023-10-XX
 --]]
 
 --* Libraries *--
@@ -84,11 +84,11 @@ end
 
 function OPCodes.ReadInstruction(Instruction)
   local OPIndex = OPCodes.GET_OPCODE(Instruction)
-  
+
   local OPName = OPCodes.OP_ENUM[OPIndex + 1]
   local OPTable = OPCodes.OP_Table[OPName]
   local ParamMode = OPTable[3]
-  
+
   local A, B, C
   if ParamMode == 0 then
     A = OPCodes.GETARG_A(Instruction)
@@ -162,7 +162,7 @@ function OPCodes.ReadFile(FilePath)
   local HeaderInfo = OPCodes.ReadHeader(Contents)
   local FunctionInfo = OPCodes.ReadFunction(Contents, StartIndex)
   local BinaryInstructions = FunctionInfo.Instructions
-  
+
   local Instructions = {}
   local Constants = {}
 
@@ -177,7 +177,7 @@ function OPCodes.ReadFile(FilePath)
     end
     print(CurrentInstruction)
     CurrentInstruction = tonumber(CurrentInstruction, 16)
-    
+
     table.insert(Instructions, {OPCodes.ReadInstruction(CurrentInstruction)})
   end
 

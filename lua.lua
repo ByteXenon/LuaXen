@@ -96,7 +96,7 @@ end
 function lua.executeString(string, varArgs)
   local newState = LuaState:new()
   newState.varArg = varArgs
-  
+
   local tokens = Lexer:new(string):tokenize()
   local AST = Parser:new(tokens):parse()
   return ASTExecutor:new(AST, newState):execute()

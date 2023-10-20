@@ -19,8 +19,11 @@ function ASTOptimizer:new(astHierarchy)
   ASTOptimizerInstance.ast = astHierarchy
 
   function ASTOptimizerInstance:run()
-    -- I like this code
-    return Pass3:new(Pass2:new(Pass1:new(self.ast):run()):run()):run()
+    local pass1AST = Pass1:new(self.ast):run()
+    local pass2AST = Pass2:new(pass1AST):run()
+    local pass3AST = pass3:new(pass2AST):run()
+
+    return pass3AST
   end
 
   return ASTOptimizerInstance

@@ -1,7 +1,7 @@
 --[[
   Name: Decompiler.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-09-XX
+  Date: 2023-10-XX
 --]]
 
 --* Dependencies *--
@@ -18,7 +18,7 @@ local concat = table.concat
 local Decompiler;
 function Decompiler:new(state)
   local DecompilerInstance = {};
-  
+
 end
 
 return Decompiler

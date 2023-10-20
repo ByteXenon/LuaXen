@@ -19,22 +19,24 @@ local insert = table.insert
 
 --* NodeToInstructionsConverter *--
 local NodeToInstructionsConverter = {}
-function NodeToInstructionsConverter:LocalFunction(node)
+function NodeToInstructionsConverter:__CodeBlock_LocalFunction(node)
+  local InstructionGenerator = ModuleManager:loadModule("Interpreter/LuaInterpreter/InstructionGenerator/InstructionGenerator")
+
   local name = node.Name
   local parameters = node.Parameters
   local codeBlock = node.CodeBlock
-  
+
   local protoLuaState = InstructionGenerator:new(node.CodeBlock):processCodeBlock(node.CodeBlock)
   insert(protoLuaState.instructions, {"RETURN", 0, 1})
   protoLuaState.parameters = parameters
-  
+
   local functionRegister = self.currentScopeState:addLocal(name)
   insert(self.luaState.protos, protoLuaState)
 
   -- R(A) := closure(KPROTO[Bx], R(A), ... ,R(A+n))
-  self:addInstruction("CLOSURE", functionRegister, #self.luaState.protos) 
+  self:addInstruction("CLOSURE", functionRegister, #self.luaState.protos)
 end
-function NodeToInstructionsConverter:LocalVariable(node)
+function NodeToInstructionsConverter:__CodeBlock_LocalVariable(node)
   local variables = node.Variables
   local expressions = node.Expressions
 
@@ -56,15 +58,15 @@ function NodeToInstructionsConverter:LocalVariable(node)
     end
   end
 end
-function NodeToInstructionsConverter:VariableAssignment(node)
+function NodeToInstructionsConverter:__CodeBlock_VariableAssignment(node)
   local variables = node.Variables
   local expressions = node.Expressions
- 
+
   for index, expression in ipairs(expressions) do
     local expressionReturnRegister = self:evaluateExpression(self.luaState.instructions, expression.Value)
     local variableName = variables[index].Value
     local localVariable = self.currentScopeState.locals[variableName]
-    
+
     self:deallocateRegister(expressionReturnRegister)
     if not variableName then
     elseif not localVariable then
@@ -74,14 +76,14 @@ function NodeToInstructionsConverter:VariableAssignment(node)
     end
   end
 end
-function NodeToInstructionsConverter:DoBlock(node)
-  self:processCodeBlock(node.CodeBlock) 
+function NodeToInstructionsConverter:__CodeBlock_DoBlock(node)
+  self:processCodeBlock(node.CodeBlock)
 end
-function NodeToInstructionsConverter:FunctionCall(node)
+function NodeToInstructionsConverter:__CodeBlock_FunctionCall(node)
   local returnRegister = self:evaluateExpression(self.luaState.instructions, node)
   self:deallocateRegister(returnRegister)
 end
-function NodeToInstructionsConverter:IfStatement(node)
+function NodeToInstructionsConverter:__CodeBlock_IfStatement(node)
   local conditionReturnRegister, conditionInstructions = self:evaluateExpression(self.luaState.instructions, node.Condition.Value)
   local conditionValue = node.Condition.Value.Value
   if conditionValue == ">" or conditionValue == "<" or conditionValue == ">=" or conditionValue == "<=" then
@@ -96,13 +98,13 @@ function NodeToInstructionsConverter:IfStatement(node)
   local newInstructionNumber = #self.luaState.instructions
   self:changeInstruction(jmpInstruction, "JMP", newInstructionNumber - oldInstructionNumber )
 end
-function NodeToInstructionsConverter:ReturnStatement(node)
+function NodeToInstructionsConverter:__CodeBlock_ReturnStatement(node)
   local startRegister;
   local returnRegisters = {}
   for index, node in ipairs(node.Expressions) do
     local returnRegister = self:evaluateExpression(self.luaState.instructions, node.Value)
-    startRegister = startRegister or returnRegister 
-    insert(returnRegisters,returnRegister) 
+    startRegister = startRegister or returnRegister
+    insert(returnRegisters,returnRegister)
   end
 
   -- OP_RETURN [A, B]    return R(A), ... ,R(A+B-2)

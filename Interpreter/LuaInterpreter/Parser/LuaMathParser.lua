@@ -19,7 +19,7 @@ local find = table.find or Helpers.TableFind
 local LuaMathParser = {}
 function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
   local errorOnFail = false
-  
+
   local rightAssociativeOperators = { "^", ".." }
   local PatchedMathParser = MathParser:new(tokens, {
     unary = {
@@ -51,7 +51,7 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
     luaParser.currentToken = luaParser.tokens[luaParser.currentTokenIndex] or { TYPE = "EOF" }
   end
   function PatchedMathParser:syncMathParser()
-    self.tokens = luaParser.tokens -- Just in case 
+    self.tokens = luaParser.tokens -- Just in case
     self.currentTokenIndex = luaParser.currentTokenIndex
   end
   function PatchedMathParser:isClosingParenthesis(token)
@@ -64,11 +64,11 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
   end
   function PatchedMathParser:isRightAssociative(operator)
     return find(rightAssociativeOperators, operator)
-  end  
+  end
 
   function PatchedMathParser:handleOperatorWithPrecedence(token, precedence, left, minPrecedence)
     local nextPrecedence = (self:isRightAssociative(token.Value) and precedence - 1) or precedence
-    
+
     self:consumeToken()
     local right = self:parseBinaryOperator(nextPrecedence)
     if not right then return end
@@ -123,7 +123,7 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
         self:consumeToken() -- Consume the last character of an operator
       end
     end
-    
+
     return left
   end;
   function PatchedMathParser:parseUnaryOperator()
@@ -131,7 +131,7 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
 
     if not token then
       return error("Unexpected end of the expression")
-    end 
+    end
 
     local value = token.Value
     local TYPE = token.TYPE
@@ -169,7 +169,7 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
       local operand = luaParser:handleSpecialOperands(token)
       self:syncMathParser()
       self:consumeToken() -- Consume the last character of an operand
-      
+
       if operand then return operand end
     end
 
@@ -177,7 +177,7 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
     if not errorOnFail then
       self.unexpectedEnd = true;
       self.errorMessage = errorMessage
-      return 
+      return
     end
 
     return error(errorMessage)
@@ -186,7 +186,7 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
     local expression = self:parseExpression()
     luaParser.currentTokenIndex = self.currentTokenIndex - ((self.unexpectedEnd and 1) or 0)
     luaParser.currentToken = luaParser.tokens[luaParser.currentTokenIndex]
-    
+
     if expression then
       return luaParser:createExpressionNode(expression)
     end

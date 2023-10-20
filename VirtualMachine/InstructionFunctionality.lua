@@ -1,7 +1,7 @@
 --[[
   Name: InstructionFunctionality.lua
   Author: Luna G. Davis & Evan L. P.
-  Date: 2023-09-XX
+  Date: 2023-10-XX
 --]]
 
 --* Dependencies *--
@@ -27,7 +27,7 @@ function InstructionFunctionality:new(luaState, VM)
   -- Require it again here, because otherwise it creates
   -- scary circular dependency errors
   local VirtualMachine = ModuleManager:loadModule("VirtualMachine/VirtualMachine")
-  
+
   local function returnFromClosure(returnValues)
     if VM.stackTrace then
       VM:stopStackTrace()
@@ -42,7 +42,7 @@ function InstructionFunctionality:new(luaState, VM)
   function InstructionFunctionalityObject:updateRegister(newRegister)
     Register = newRegister
   end
-  
+
   -- OP_MOVE [A, B]    R(A) := R(B)
   -- Copy a value between registers
   function InstructionFunctionalityObject.MOVE(A, B)
@@ -193,7 +193,7 @@ function InstructionFunctionality:new(luaState, VM)
     VM.pc = VM.pc + A
   end;
 
-  -- OP_EQ [A, B, C]    if ((RK(B) == RK(C)) ~= A) then pc++ 
+  -- OP_EQ [A, B, C]    if ((RK(B) == RK(C)) ~= A) then pc++
   -- Equality test, with conditional jump
   function InstructionFunctionalityObject.EQ(A, B, C)
     local RK_B = Constants[B] or Register[B]
@@ -253,14 +253,14 @@ function InstructionFunctionality:new(luaState, VM)
     if B == 0 then
       B = #Register - A + 2
     end
-    
+
     local _Index = 1
     for i = A + 1, A + B - 1 do
       Arguments[_Index] = Register[i]
       _Index = _Index + 1
     end
     local Results = {Register[A](unpack(Arguments))}
-    
+
     _Index = 1
     for i = A, A + C - 2 do
       Register[i] = Results[_Index]
@@ -296,7 +296,7 @@ function InstructionFunctionality:new(luaState, VM)
 
   -- OP_FORLOOP [A, sBx]   R(A)+=R(A+2);
   --                       if R(A) <?= R(A+1) then { pc+=sBx; R(A+3)=R(A) }
-  -- Iterate a numeric for loop 
+  -- Iterate a numeric for loop
   function InstructionFunctionalityObject.FORLOOP(A, B)
     -- HACK: Optimized
     local _ = Register[A] + Register[A + 2]

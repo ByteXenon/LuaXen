@@ -49,7 +49,7 @@ function ASTToTokensConverter:new(astHierarchy)
   function ASTToTokensConverterInstance:newNumber(value)
     return { TYPE = "Number", Value = value }
   end
-  
+
   function ASTToTokensConverterInstance:tokenizeNode(node)
     local nodeType = node.TYPE
     local nodeFunc = self[nodeType]

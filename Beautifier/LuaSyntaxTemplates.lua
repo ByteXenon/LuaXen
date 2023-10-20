@@ -28,7 +28,7 @@ local stringTemplates = {
   LocalVariable = "{codeBlockIndentation}local {variables} = {expressions}",
   VariableAssignment = "{codeBlockIndentation}{variables} = {expressions}",
   WhileLoop = "{codeBlockIndentation}while {expression} do{codeBlock}{postCodeBlockIndentation}end",
-  
+
   IfStatement = "{codeBlockIndentation}if {condition} then{codeBlock}{postCodeBlockIndentation}{elseIfStatement}{elseStatement}{codeBlockIndentation}end",
   ElseIfStatement = "{codeBlockIndentation}elseif {condition} then{codeBlock}",
   ElseStatement = "{codeBlockIndentation}else {codeBlock}",

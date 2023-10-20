@@ -61,7 +61,7 @@ function ASTHierarchy:new(AST)
 
     self:applyMethods(node)
     self:traverseNodeChildren(node)
-    
+
     if not parent then return node end
   end
 

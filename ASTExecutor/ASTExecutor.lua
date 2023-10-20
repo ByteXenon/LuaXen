@@ -17,7 +17,7 @@ local ASTExecutor = {}
 function ASTExecutor:new(AST, state)
   local luaState = state or LuaState:new()
 
-  local ASTExecutorInstance = ASTNodesFunctionality:new({}) 
+  local ASTExecutorInstance = ASTNodesFunctionality:new({})
   ASTExecutorInstance.ast = AST
   ASTExecutorInstance.state = luaState
   ASTExecutorInstance.varArg = luaState.varArg
@@ -27,7 +27,7 @@ function ASTExecutor:new(AST, state)
 
   function ASTExecutorInstance:setLocalVariable(localName, localValue)
     local locals = self.locals
-    
+
     local localVariable = locals[localName]
     if not localVariable then
       localVariable = {}

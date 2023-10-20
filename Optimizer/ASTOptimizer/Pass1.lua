@@ -53,10 +53,10 @@ local function compileTimeEvaluateExpression(node)
     local value = node.Value
     local left = node.Left
     local right = node.Right
-    
+
     local evaluatedLeft = compileTimeEvaluateExpression(left)
     local evaluatedRight = compileTimeEvaluateExpression(right)
- 
+
     if (evaluatedLeft.TYPE == "String" or evaluatedLeft.TYPE == "Number")
      and (evaluatedRight.TYPE == "String" or evaluatedRight.TYPE == "Number") then
       if value == ".." then
@@ -73,7 +73,7 @@ local function compileTimeEvaluateExpression(node)
       if not result or result == true then return addASTConstant(result) end
     elseif value == "and" then
       local result = (evaluatedLeft.Value and evaluatedRight.Value)
-      if not result or result == true then return addASTConstant(result) end     
+      if not result or result == true then return addASTConstant(result) end
       return addASTNumber(result)
     elseif value == "or" then
       local result = (evaluatedLeft.Value or evaluatedRight.Value)
@@ -84,7 +84,7 @@ local function compileTimeEvaluateExpression(node)
     if not isANumber(evaluatedLeft, evaluatedRight) then
       return addASTOperator(value, evaluatedLeft, evaluatedRight)
     end
-    
+
     if     value == "+"  then return addASTNumber  (evaluatedLeft.Value +  evaluatedRight.Value)
     elseif value == "-"  then return addASTNumber  (evaluatedLeft.Value -  evaluatedRight.Value)
     elseif value == "/"  then return addASTNumber  (evaluatedLeft.Value /  evaluatedRight.Value)
@@ -125,7 +125,7 @@ function Pass1:new(astHierarchy)
     self:foldConstants()
     return self.ast
   end
-  
+
   return Pass1Instance
 end
 

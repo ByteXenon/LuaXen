@@ -28,7 +28,7 @@ function Pass3:new(astHierarchy)
           local constantValue = conditionValue.Value
           if constantValue then
             ifStatement:remove()
-            ifStatement.Parent:addNodesToStart(ifStatement.CodeBlock)            
+            ifStatement.Parent:addNodesToStart(ifStatement.CodeBlock)
           else
             ifStatement:remove()
           end
@@ -41,7 +41,7 @@ function Pass3:new(astHierarchy)
     self:eliminateDeadIfStatements()
     return self.ast
   end
-  
+
   return Pass3Instance
 end
 

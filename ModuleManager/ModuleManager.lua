@@ -1,7 +1,7 @@
 --[[
   Name: ModuleManager.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-09-XX
+  Date: 2023-10-XX
 --]]
 
 local Aliases = require("ModuleManager/Aliases")
@@ -61,7 +61,7 @@ function ModuleManager:preloadModules(preloaded)
   local preloadedModules = preloaded or Preloaded
   for _, modulePath in ipairs(preloadedModules) do
     loadModule(modulePath)
-  end 
+  end
 end
 function ModuleManager:setAliases(aliases)
   local aliases = aliases or Aliases

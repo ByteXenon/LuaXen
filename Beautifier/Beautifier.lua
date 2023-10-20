@@ -56,7 +56,7 @@ function Beautifier:new(astHierarchy)
     end
     return concat(processedExpressionList, ", ")
   end
-  
+
   function BeautifierInstance:processNode(node, isInCodeBlock)
     local nodeType = node.TYPE
     if nodeType == "Expression" or nodeType == "AST" or nodeType == "Group" then

@@ -25,7 +25,7 @@ function VirtualMachine:new(luaState)
     newConstants[-abs(i)] = v
   end
   luaState.constants = newConstants
-  
+
   VirtualMachineInstance.InstructionFunctions = InstructionFunctionality:new(luaState, VirtualMachineInstance)
   VirtualMachineInstance.pc = 1
   VirtualMachineInstance.state = luaState
@@ -34,7 +34,7 @@ function VirtualMachine:new(luaState)
 
   function VirtualMachineInstance:handler(...)
     local luaState = self.state
-    
+
     luaState.vararg = luaState.vararg or {...}
     local instructions = luaState.instructions
     local instructionFunctions = self.InstructionFunctions
@@ -50,7 +50,7 @@ function VirtualMachine:new(luaState)
       instructionFunction(A, B, C)
       currentPC = self.pc + 1
     end
-    
+
     self:stopStackTrace()
     return unpack(self.returnValues or {})
   end;
@@ -68,15 +68,15 @@ function VirtualMachine:new(luaState)
 
   function VirtualMachineInstance:startStackTrace()
     if self.stackTrace then return end
-    
+
     self.stackTrace = true
     self.stackTraceTb = { _Index = {}, _NewIndex = {}, Instructions = {} }
-  
+
     local VMSelf = self
     local stackTraceTb = self.stackTraceTb
     local originalRegister = self.state.register
     local registerDecorator = CreateTableDecorator(originalRegister)
-  
+
      registerDecorator:__AddEvent("Index", function(self, index)
       local state = VMSelf.state
       local register = state.register
@@ -108,7 +108,7 @@ function VirtualMachine:new(luaState)
        }
       insert(stackTraceTb._NewIndex, information)
     end)
-    
+
     self.InstructionFunctions:updateRegister(registerDecorator)
   end
   function VirtualMachineInstance:stopStackTrace()
@@ -154,7 +154,7 @@ function VirtualMachine:new(luaState)
       superSelf:registerDump()
       return print("Error while running virtual machine:", ...)
     end, ...)
-    
+
     return unpack(returnValue)
   end;
 

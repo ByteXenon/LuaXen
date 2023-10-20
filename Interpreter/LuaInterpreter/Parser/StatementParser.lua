@@ -15,7 +15,7 @@ local find = table.find or Helpers.TableFind
 --* Statements *--
 local Statements = {}
 
--- "<variable>(, <variable>)* (= <expression>(, <expression>)*)?" 
+-- "<variable>(, <variable>)* (= <expression>(, <expression>)*)?"
 function Statements:__VariableAssignment(variables)
   local variables = variables or {self:__Field()}
   while self:compareTokenValueAndType(self.currentToken, "Character", ",") do
@@ -24,10 +24,10 @@ function Statements:__VariableAssignment(variables)
   end
 
   self:expectCurrentTokenAndConsume("Character", "=")
-  
+
   return self:createVariableAssignmentNode(self:consumeMultipleExpressions(), variables)
 end
--- "[<identifier>, <vararg>]? [, <identifier>, <vararg>]*" 
+-- "[<identifier>, <vararg>]? [, <identifier>, <vararg>]*"
 function Statements:__FunctionParameters()
   local parameters = {}
   while true do
@@ -36,7 +36,7 @@ function Statements:__FunctionParameters()
     if tokenType == "Identifier" then
       insert(parameters, currentToken.Value)
     elseif tokenType == "Constant" and currentToken.Value == "..." then
-      insert(parameters, "...")      
+      insert(parameters, "...")
       -- There's no params after vararg.
       self:expectNextToken("Character", ")")
       break
@@ -89,14 +89,14 @@ end
 -- <function_name>(<args>*)
 function Statements:consumeFunctionCall(currentExpression)
   self:consume() -- Consume the "(" symbol
-  
+
   -- Get arguments for the function
   local arguments = {};
   if not self:isClosingParenthesis(self.currentToken) then
     arguments = self:consumeMultipleExpressions()
     self:consume()
   end
-  
+
   return self:createFunctionCallNode(currentExpression, arguments)
 end
 -- <table>:<method_name>(<args>*)
@@ -114,7 +114,7 @@ end
 -- { ( \[<expression>\] = <expression> | <identifier> = <expression> | <expression> ) ( , )? }*
 function Statements:consumeTable()
   self:consume() -- Consume "{"
-  
+
   local elements = {}
   local index = 1
   while not self:compareTokenValueAndType(self.currentToken, "Character", "}") do
@@ -148,14 +148,14 @@ function Statements:consumeTable()
     end
   end
 
-  return self:createTableNode(elements) 
+  return self:createTableNode(elements)
 end
 function Statements:handleSpecialOperators(token, leftExpr)
   if token.TYPE == "Character" then
     -- <table>.<index>
     if token.Value == "." then return self:consumeTableIndex(leftExpr)
     -- <table>[<expression>]
-    elseif token.Value == "[" then return self:consumeBracketTableIndex(leftExpr) 
+    elseif token.Value == "[" then return self:consumeBracketTableIndex(leftExpr)
     -- <table>:<method_name>(<args>*)
     elseif token.Value == ":" then return self:consumeMethodCall(leftExpr)
     -- <function_name>(<args>*)
@@ -183,7 +183,7 @@ end
 -- "<identifier> | (<identifier>(. <identifier>)*) | (<identifier>[<expression>])"
 function Statements:__Field()
   local identifier = self:expectCurrentToken("Identifier")
-  
+
   self:consume()
   if self:tokenIsOneOf(self.currentToken, {{"Character", "."}, {"Character", "["}}) then
     local tableElement = identifier
@@ -191,10 +191,10 @@ function Statements:__Field()
       tableElement = self:_TableIndex(tableElement)
       self:consume()
     until not (self:tokenIsOneOf(self.currentToken, {{"Character", "."}, {"Character", "["}}))
-    
+
     return tableElement
   end
-  
+
   return identifier
 end
 -- "local function <identifier>(<args>) <code_block> end"
@@ -222,7 +222,7 @@ function Statements:_local()
   end
 
   self:expectCurrentTokenAndConsume("Character", "=")
-  
+
   local expressions = self:consumeMultipleExpressions()
   return self:createLocalVariableNode(variables, expressions)
 end
@@ -258,7 +258,7 @@ function Statements:_repeat()
   local codeBlock = self:consumeCodeBlock({"until"})
   self:expectCurrentTokenAndConsume("Keyword", "until")
   local statement = self:consumeExpression()
-  
+
   return self:createUntilLoopNode(codeBlock, statement)
 end
 -- "do <code_block> end"
@@ -274,7 +274,7 @@ function Statements:_while()
   local expression = self:consumeExpression()
   self:expectNextTokenAndConsume("Keyword", "do")
   local codeBlock = self:consumeCodeBlock({"end"})
-  
+
   return self:createWhileLoopNode(expression, codeBlock)
 end
 -- "return( <expression>(, <expression>)*)?"
@@ -298,7 +298,7 @@ function Statements:_method(fields)
   local methodName = self:expectCurrentToken("Identifier")
   insert(fields, methodName.Value)
   self:consume() -- Consume method name
-  
+
   self:expectCurrentTokenAndConsume("Character", "(")
   local parameters = self:__FunctionParameters()
   self:expectCurrentTokenAndConsume("Character", ")")
@@ -313,7 +313,7 @@ function Statements:_function(isLocal)
   self:consume() -- Consume the first identifier field
 
   local currentToken = self.currentToken
-  
+
   -- [. <identifier>]*
   while self:compareTokenValueAndType(currentToken, "Character", ".") do
     local previousToken = currentToken
@@ -332,7 +332,7 @@ function Statements:_function(isLocal)
   local parameters = self:__FunctionParameters()
   self:expectCurrentTokenAndConsume("Character", ")")
   local codeBlock = self:consumeCodeBlock({"end"})
-  
+
   return self:createFunctionDeclarationNode(parameters, codeBlock, fields)
 end
 -- "in <expression> do <codeblock> end"
@@ -341,7 +341,7 @@ local function consumeGenericLoop(self, iteratorVariables)
   local expression = self:consumeExpression()
   self:expectNextTokenAndConsume("Keyword", "do")
   local codeBlock = self:consumeCodeBlock({"end"})
-  
+
   return self:createGenericForNode(iteratorVariables, expression, codeBlock)
 end
 -- "= <expression>, <expression>(, <expression>)? do <codeblock> end"

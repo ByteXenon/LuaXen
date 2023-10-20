@@ -20,9 +20,9 @@ end
 local function createNodeMethod(nodeType, methodIndex, func)
   if nodeType == "_Default" then
     for index, nodeTypeTable in pairs(NodeMethods) do
-      nodeTypeTable[methodIndex] = func 
+      nodeTypeTable[methodIndex] = func
     end
-    return 
+    return
   end
 
   local nodeTypeTb = NodeMethods[nodeType]

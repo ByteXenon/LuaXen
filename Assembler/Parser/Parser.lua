@@ -1,17 +1,17 @@
 --[[
   Name: Parser.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-09-XX
+  Date: 2023-10-XX
 --]]
 
 --* Dependencies *--
-local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Assembler/Parser/")
+local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Assembler/Parser/Parser")
+
 local Helpers = ModuleManager:loadModule("Helpers/Helpers")
 local LuaState = ModuleManager:loadModule("LuaState/LuaState")
 
 --* Export library functions *--
 local find = Helpers.TableFind
-local formattedError = Helpers.FormattedError
 local insert = table.insert
 local concat = table.concat
 
@@ -38,7 +38,7 @@ function Parser:new(tokens)
   end
 
   function ParserInstance:findOrCreateConstant(constant)
-    constantIndex = find(self.state.constants, constant) 
+    constantIndex = find(self.state.constants, constant)
     if not constantIndex then
       insert(self.state.constants, constant)
       constantIndex = #self.state.constants
@@ -50,7 +50,7 @@ function Parser:new(tokens)
     local nextToken = (consume and (self:consume() or {})) or self:peek()
     local nextTokenType = nextToken.TYPE
     if find(expectedTypes, nextTokenType) then return true end
-    return formattedError("Unexpected token type: {0}", nextTokenType)
+    error("Unexpected token type: " .. tostring(nextTokenType))
   end
 
   function ParserInstance:consumeFields()
@@ -59,7 +59,7 @@ function Parser:new(tokens)
     local allowedTypes = {"KEYWORD", "NUMBER", "STRING"}
 
     self:consume()
-    if not find(allowedTypes, self.curToken.TYPE) then return fields end 
+    if not find(allowedTypes, self.curToken.TYPE) then return fields end
     while true do
       local curToken = self.curToken
 
@@ -67,7 +67,7 @@ function Parser:new(tokens)
       if curToken.TYPE == "KEYWORD" then
         local label = self.labels[curToken.Value]
         if not label then
-          formattedError("Unknown label: {0}", curToken.Value)
+          error("Unknown label: " .. tostring(curToken.Value))
         end
         curToken = {
           TYPE = "NUMBER",
@@ -91,7 +91,7 @@ function Parser:new(tokens)
   end
   function ParserInstance:consumeFunction()
     local Tokens = {}
-    
+
     self:consume()
     while self:peek().TYPE ~= "RIGHT_BRACE" do
       local curToken = self.curToken
@@ -124,7 +124,7 @@ function Parser:new(tokens)
         }
         return label
       end
-      
+
       local instruction = {currentToken.Value, unpack(self:consumeFields())}
       self:consume()
       return {TYPE = "INSTRUCTION", Value = instruction}

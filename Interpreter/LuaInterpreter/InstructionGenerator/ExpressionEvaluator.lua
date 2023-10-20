@@ -26,7 +26,7 @@ function ExpressionEvaluator:new()
 
   local function addInstruction(instructions, opName, a, b, c)
     insert(instructions, { opName, a, b, c })
-    return #instructions 
+    return #instructions
   end
   local function changeInstruction(instructions, instructionIndex, opName, a, b, c)
     local oldInstruction = instructions[instructionIndex]
@@ -35,16 +35,16 @@ function ExpressionEvaluator:new()
       (opName == false and oldInstruction[1]) or opName,
       (a == false and oldInstruction[2]) or a,
       (b == false and oldInstruction[3]) or b,
-      (c == false and oldInstruction[4]) or c 
+      (c == false and oldInstruction[4]) or c
     }
   end
 
   function ExpressionEvaluatorInstance:evaluateExpressionNode(instructions, expression, canReturnConstantIndex, isStatementContext)
     local type = expression.TYPE
-    if self[type] then
-      return self[type](self, expression)
+    if self["__Expression_" .. type] then
+      return self["__Expression_" .. type](self, instructions, expression, canReturnConstantIndex, isStatementContext)
     else
-      return error("Unsupported node type: " .. type)
+      return error("Unsupported node type: " .. tostring(type))
     end
   end
 

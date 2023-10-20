@@ -47,19 +47,19 @@ function Lexer:new(string)
   LexerInstance.tokens = {}
   LexerInstance.comments = {}
   LexerInstance.reservedKeywords = {
-    "while", "do", "end", "for", 
-    "local", "repeat", "until", "return", 
-    "in", "if", "else", "elseif", 
+    "while", "do", "end", "for",
+    "local", "repeat", "until", "return",
+    "in", "if", "else", "elseif",
     "function", "then", "break", "continue"
   }
   LexerInstance.constants = {
     "false", "true", "nil", "..."
   }
   LexerInstance.operators = {
-    "^", "*", "/", "%", 
-    "+", "-", "<", ">", 
+    "^", "*", "/", "%",
+    "+", "-", "<", ">",
     "#",
-    
+
     "<=", ">=", "==", "~=",
     "and", "or", "not", ".."
   }
@@ -129,7 +129,7 @@ function Lexer:new(string)
     local stringTb = StringToTable(targetString)
     local stringLen = #targetString
     local matchedIndex = 1;
-    
+
     local returnString = {}
     while matchedIndex <= stringLen do
       local curChar = self.curChar
@@ -215,7 +215,7 @@ function Lexer:new(string)
     self:expectChars("[")
     local depth = #self:readWhileChar("=")
     self:expectChars("[")
-    
+
     local closingString = "]" .. rep("=", depth) .. "]"
     return self:readWhileNotString(closingString)
   end
@@ -254,7 +254,7 @@ function Lexer:new(string)
         Value = self:consumeComment()
       })
     elseif self:isDigit() then
-      local newNumber = self:consumeDigit() 
+      local newNumber = self:consumeDigit()
       return insert(self.tokens, self:newToken("Number", tonumber(newNumber)))
     elseif self:isIdentifier() then
       local newIdentifier = self:consumeIdentifier()
@@ -265,7 +265,7 @@ function Lexer:new(string)
         elseif newIdentifier ~= "nil" then
           constantValue = newIdentifier == "true"
         end
-        
+
         insert(self.tokens, self:newToken("Constant", constantValue))
       elseif find(self.operators, newIdentifier) then
         insert(self.tokens, self:newToken("Operator", newIdentifier))

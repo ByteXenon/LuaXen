@@ -1,7 +1,7 @@
 --[[
   Name: Lexer.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-09-XX
+  Date: 2023-10-XX
 --]]
 
 --* Dependencies *--
@@ -104,7 +104,7 @@ function Lexer:new(str)
         local keyword = self:consumeKeyword()
         if keyword == "true" or keyword == "false" then
           self:addToken(keyword, "BOOLEAN")
-        else 
+        else
           self:addToken(keyword, "KEYWORD")
         end
       elseif self:isNumber() then

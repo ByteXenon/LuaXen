@@ -1,7 +1,7 @@
 --[[
   Name: Assembler.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-09-XX
+  Date: 2023-10-XX
 --]]
 
 --* Dependencies *--
@@ -17,9 +17,17 @@ local ReadFile = Helpers.ReadFile
 --* Assembler *--
 local Assembler = {}
 
-function Assembler:assemble(str)
+function Assembler:tokenize(str)
   local tokens = Lexer:new(str):tokenize()
+  return tokens
+end
+function Assembler:parse(tokens)
   local state = Parser:new(tokens):run()
+  return state
+end
+function Assembler:assemble(str)
+  local tokens = self:tokenize(str)
+  local state = self:parse(tokens)
   return state
 end
 
