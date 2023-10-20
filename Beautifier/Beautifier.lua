@@ -72,6 +72,7 @@ function Beautifier:new(astHierarchy)
       name = node.Name,
       value = (node.Value),
       index = (node.Index and self:processNode(node.Index)),
+      constant = (tostring(node.Value)),
       expression = (node.Expression and self:processNode(node.Expression)),
       condition = (node.Condition and self:processNode(node.Condition)),
       expressions = (node.Expressions and self:expressionListToStr(node.Expressions)),

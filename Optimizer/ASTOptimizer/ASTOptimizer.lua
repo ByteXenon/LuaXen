@@ -10,6 +10,7 @@ local Helpers = ModuleManager:loadModule("Helpers/Helpers")
 
 local Pass1 = ModuleManager:loadModule("Optimizer/ASTOptimizer/Pass1")
 local Pass2 = ModuleManager:loadModule("Optimizer/ASTOptimizer/Pass2")
+local Pass3 = ModuleManager:loadModule("Optimizer/ASTOptimizer/Pass3")
 
 --* ASTOptimizer *--
 local ASTOptimizer = {}
@@ -18,9 +19,8 @@ function ASTOptimizer:new(astHierarchy)
   ASTOptimizerInstance.ast = astHierarchy
 
   function ASTOptimizerInstance:run()
-    self.ast = Pass1:new(self.ast):run()
-    self.ast = Pass2:new(self.ast):run()
-    return self.ast
+    -- I like this code
+    return Pass3:new(Pass2:new(Pass1:new(self.ast):run()):run()):run()
   end
 
   return ASTOptimizerInstance

@@ -15,6 +15,17 @@ local Printer = ModuleManager:loadModule("Printer/Printer")
 --* Export library functions *--
 local insert = table.insert
 
+--* Local functions *--
+local function addMethodsToNode(node)
+  local nodeType = node.TYPE
+  for index, method in pairs(NodeMethods[nodeType]) do
+    node[index] = function(self, ...)
+      return method(self, node, ...)
+    end
+  end
+  return node
+end
+
 --* _Default *--
 local _Default = {}
 
@@ -68,6 +79,18 @@ function _Default:getChildren(node)
 
   return children
 end
+function _Default:changeNode(node, newNode)
+  local NodeMethods = ModuleManager:loadModule("ASTHierarchy/NodeMethods/NodeMethods")
+
+  for index, value in pairs(node) do
+    node[index] = nil
+  end
+  for index, value in pairs(newNode) do
+    node[index] = value
+  end
+
+  return addMethodsToNode(node)
+end
 -- Get descendants of the node
 function _Default:getDescendants(node)
   local descendants = {}
@@ -104,6 +127,22 @@ function _Default:getDescendantsWithType(node, type)
     end
   end
   return descendantsWithSpecificType
+end
+function _Default:addNodesToStart(parentNode, nodes, addMethods)
+  for index, node in ipairs({unpack(nodes), unpack(parentNode)}) do
+    if addMethods then addMethodsToNode(node) end
+    parentNode[index] = node
+  end
+
+  return parentNode
+end
+function _Default:addNodesToFinish(parentNode, nodes, addMethods)
+  for index, node in ipairs({unpack(parentNode), unpack(nodes)}) do
+    if addMethods then addMethodsToNode(node) end
+    parentNode[index] = node
+  end
+
+  return parentNode
 end
 -- Get values of the node without methods
 function _Default:getOriginalIndices(node)

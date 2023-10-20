@@ -140,7 +140,7 @@ function Parser:new(tokens)
     end
 
     for _, value in ipairs(expressions) do
-      if value.TYPE == "Identifier" or value.TYPE == "Index" then
+      if value.Value.TYPE == "Identifier" or value.Value.TYPE == "Index" then
       else return false end
     end
     return true 

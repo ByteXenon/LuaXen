@@ -11,12 +11,15 @@ local NodeSpecs = {
   
   FunctionCall        = { Expression  = "Node",         Arguments   = "NodeList" },
   MethodCall          = { Expression  = "Node",         Arguments   = "NodeList" },
+  
   Identifier          = { Value       = "Value" },
   Constant            = { Value       = "Value" },
   Number              = { Value       = "Value" },
   String              = { Value       = "Value" },
+  
   Index               = { Index       = "Node",         Expression  = "Node" },
   MethodIndex         = { Index       = "Node",         Expression  = "Node" },
+  
   Table               = { Elements    = "TableElementList" },
   TableElement        = { Key         = "Node",         Value       = "Node" },
   

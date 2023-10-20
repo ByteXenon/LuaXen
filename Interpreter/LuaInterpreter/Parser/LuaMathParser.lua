@@ -20,7 +20,6 @@ local LuaMathParser = {}
 function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
   local errorOnFail = false
   
-  -- TODO
   local rightAssociativeOperators = { "^", ".." }
   local PatchedMathParser = MathParser:new(tokens, {
     unary = {
@@ -91,12 +90,6 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
 
     local left = self:parseUnaryOperator()
     if not left then
-      --[[@PRIVATE
-        Honestly, I don't care about the code quality anymore,
-        I just want to go cry in a corner because...
-        fucking hell.
-        fuck it all.
-      --]]
       self.unexpectedEnd = true;
       self.currentTokenIndex = self.currentTokenIndex - 1
       return

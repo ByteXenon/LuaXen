@@ -25,11 +25,11 @@ function NodeFactory:createExpressionNode(value)
 end
 -- Function call (e.g., f(a, b))
 function NodeFactory:createFunctionCallNode(expression, arguments)
-  return { TYPE = "FunctionCall", Expression = expression, Arguments = arguments }
+  return { TYPE = "FunctionCall", Expression = expression, Arguments = self:createGroup(arguments) }
 end
 -- Method call (e.g., obj:m(a, b))
 function NodeFactory:createMethodCallNode(expression, arguments)
-  return { TYPE = "MethodCall", Expression = expression, Arguments = arguments }
+  return { TYPE = "MethodCall", Expression = expression, Arguments = self:createGroup(arguments) }
 end
 -- Identifier (e.g., variable name)
 function NodeFactory:createIdentifierNode(value)
@@ -69,7 +69,7 @@ function NodeFactory:createMethodDeclarationNode(parameters, codeBlock, fields)
 end
 -- Variable assignment
 function NodeFactory:createVariableAssignmentNode(expressions, variables)
-  return { TYPE = "VariableAssignment", Expressions = self:createGroup(expressions), Variables = variables }
+  return { TYPE = "VariableAssignment", Expressions = self:createGroup(expressions), Variables = self:createGroup(variables) }
 end
 -- Local function definition
 function NodeFactory:createLocalFunctionNode(name, parameters, codeBlock)
@@ -81,7 +81,7 @@ function NodeFactory:createLocalVariableNode(variables, expressions)
 end
 -- If statement with else-ifs and else
 function NodeFactory:createIfStatementNode(condition, codeBlock, elseIfs, elseStatement)
-  return { TYPE = "IfStatement", Condition = condition, CodeBlock = self:createGroup(codeBlock), ElseIfs = elseIfs, Else = elseStatement }
+  return { TYPE = "IfStatement", Condition = condition, CodeBlock = self:createGroup(codeBlock), ElseIfs = self:createGroup(elseIfs), Else = elseStatement }
 end
 -- Else-if clause in an if statement
 function NodeFactory:createElseIfStatementNode(condition, codeBlock)

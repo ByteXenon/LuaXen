@@ -1,7 +1,7 @@
 --[[
   Name: InstructionGenerator.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-09-XX
+  Date: 2023-10-XX
 --]]
 
 --* Dependencies *--
@@ -9,6 +9,7 @@ local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Interprete
 local Helpers = ModuleManager:loadModule("Helpers/Helpers")
 
 local ExpressionEvaluator = ModuleManager:loadModule("Interpreter/LuaInterpreter/InstructionGenerator/ExpressionEvaluator")
+local NodeToInstructionsConverter = ModuleManager:loadModule("Interpreter/LuaInterpreter/InstructionGenerator/NodeCompilers/NodeToInstructionsConverter")
 local ScopeState = ModuleManager:loadModule("Interpreter/LuaInterpreter/InstructionGenerator/ScopeState")
 local LuaState = ModuleManager:loadModule("LuaState/LuaState")
 
@@ -24,9 +25,10 @@ function InstructionGenerator:new(AST, luaState)
   InstructionGeneratorInstance.luaState = luaState or LuaState:new()
   InstructionGeneratorInstance.AST = AST
   InstructionGeneratorInstance.registers = {}
-  -- InstructionGeneratorInstance.latestAllocatedRegister;
-  for i,v in pairs(ExpressionEvaluator:new()) do
-    InstructionGeneratorInstance[i] = v
+  for _, tb in ipairs({ExpressionEvaluator:new(), NodeToInstructionsConverter}) do
+    for index, value in pairs(tb) do
+      InstructionGeneratorInstance[index] = value
+    end
   end
 
   function InstructionGeneratorInstance:getFutureAllocatedRegister()
@@ -103,87 +105,10 @@ function InstructionGenerator:new(AST, luaState)
 
   function InstructionGeneratorInstance:processNode(node)
     local type = node.TYPE
-    if type == "LocalFunction" then
-      local name = node.Name
-      local parameters = node.Parameters
-      local codeBlock = node.CodeBlock
-      
-      local protoLuaState = InstructionGenerator:new(node.CodeBlock):processCodeBlock(node.CodeBlock)
-      insert(protoLuaState.instructions, {"RETURN", 0, 1})
-      protoLuaState.parameters = parameters
-      
-      local functionRegister = self.currentScopeState:addLocal(name)
-      insert(self.luaState.protos, protoLuaState)
-
-      -- R(A) := closure(KPROTO[Bx], R(A), ... ,R(A+n))
-      self:addInstruction("CLOSURE", functionRegister, #self.luaState.protos)
-    elseif type == "LocalVariable" then
-      local variables = node.Variables
-      local expressions = node.Expressions
-
-      for index, expression in ipairs(expressions) do
-        local expressionReturnRegister = self:evaluateExpression(self.luaState.instructions, expression)
-        local variableName = variables[index]
-        if not variableName then
-          self:deallocateRegister(expressionReturnRegister)
-        else
-          local nextAllocatedRegister = self:getFutureAllocatedRegister()
-          local localRegister = expressionReturnRegister
-          if nextAllocatedRegister - 1 == expressionReturnRegister then
-          else
-            localRegister = self:allocateRegister()
-            self:addInstruction("MOVE", localRegister, expressionReturnRegister)
-          end
-
-          self.currentScopeState:setLocal(localRegister, variableName.Value)
-        end
-      end
-    elseif type == "VariableAssignment" then
-      local variables = node.Variables
-      local expressions = node.Expressions
-      for index, expression in ipairs(expressions) do
-        local expressionReturnRegister = self:evaluateExpression(self.luaState.instructions, expression)
-        local variableName = variables[index].Value
-        local localVariable = self.currentScopeState.locals[variableName]
-        
-        self:deallocateRegister(expressionReturnRegister)
-        if not variableName then
-        elseif not localVariable then
-          self:addInstruction("SETGLOBAL", self:addConstant(variableName), expressionReturnRegister)
-        else -- This is a known local variable
-          self:addInstruction("MOVE", localVariable, expressionReturnRegister)
-        end
-      end
-    elseif type == "DoBlock" then
-      self:processCodeBlock(node.CodeBlock) 
-    elseif type == "FunctionCall" then
-      local returnRegister = self:evaluateExpression(self.luaState.instructions, node)
-      self:deallocateRegister(returnRegister)
-    elseif type == "IfStatement" then
-      local conditionReturnRegister, conditionInstructions = self:evaluateExpression(self.luaState.instructions, node.Condition)
-      local conditionValue = node.Condition.Value
-      if conditionValue == ">" or conditionValue == "<" or conditionValue == ">=" or conditionValue == "<=" then
-        -- Don't touch it, it already has a check
-      else
-        -- OP_TEST [A, C]    if not (R(A) <=> C) then pc++
-        self:addInstruction("TEST", conditionReturnRegister, 0)
-      end
-      local jmpInstruction = self:addInstruction("JMP", 0)
-      local oldInstructionNumber = #self.luaState.instructions
-      local codeBlockInstructions = self:processCodeBlock(node.CodeBlock)
-      local newInstructionNumber = #self.luaState.instructions
-      self:changeInstruction(jmpInstruction, "JMP", newInstructionNumber - oldInstructionNumber )
-    elseif type == "ReturnStatement" then
-      local startRegister;
-      local returnRegisters = {}
-      for index, node in ipairs(node.Expressions) do
-        local returnRegister = self:evaluateExpression(self.luaState.instructions, node)
-        startRegister = startRegister or returnRegister 
-        insert(returnRegisters,returnRegister) 
-      end
-
-      -- OP_RETURN [A, B]    return R(A), ... ,R(A+B-2)
-      self:addInstruction("RETURN", startRegister, startRegister + #returnRegisters + 1)
+    if self[type] then
+      return self[type](self, node)
+    else
+      return error("Unsupported node type: " .. type)
     end
   end;
   function InstructionGeneratorInstance:processCodeBlock(codeBlockNode)

@@ -10,64 +10,68 @@
 local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Optimizer/ASTOptimizer/Pass1")
 local Helpers = ModuleManager:loadModule("Helpers/Helpers")
 
-local function addASTNumber(number) return { TYPE = "Number", Value = number } end
-local function addASTString(str) return { TYPE = "String", Value = str } end
-local function addASTConstant(value) return { TYPE = "Constant", Value = value } end
-local function addASTFunctionCall(expression, arguments)
-  return { TYPE = "FunctionCall", Expression = expression, Arguments = arguments}
-end
-local function addASTOperator(value, left, right)
-  return { TYPE = "Operator", Value = value, Left = left, Right = right }
-end
-local function addASTUnaryOperator(value, operand)
-  return { TYPE = "UnaryOperator", Operand = operand }
+local NodeMethods = ModuleManager:loadModule("ASTHierarchy/NodeMethods/NodeMethods")
+
+local function applyMethods(node)
+  local nodeType = node.TYPE
+  for index, method in pairs(NodeMethods[nodeType]) do
+    node[index] = function(self, ...)
+      return method(self, node, ...)
+    end
+  end
+  return node
 end
 
-local function compileTimeEvaluateExpression(expression)
-  local isANumber;
-  local isAConstant;
-  local isANumberOrAConstant;
+local function addASTNumber(number)
+  return applyMethods{ TYPE = "Number", Value = number }
+end
+local function addASTString(str)
+  return applyMethods{ TYPE = "String", Value = str }
+end
+local function addASTConstant(value)
+  return applyMethods{ TYPE = "Constant", Value = value }
+end
+local function addASTFunctionCall(expression, arguments)
+  return applyMethods{ TYPE = "FunctionCall", Expression = expression, Arguments = arguments}
+end
+local function addASTOperator(value, left, right)
+  return applyMethods{ TYPE = "Operator", Value = value, Left = left, Right = right }
+end
+local function addASTUnaryOperator(value, operand)
+  return applyMethods{ TYPE = "UnaryOperator", Operand = operand }
+end
+
+local function compileTimeEvaluateExpression(node)
   local function isANumber(left, right) return (left and left.TYPE == "Number") and (not right or isANumber(right)) end
   local function isAConstant(left, right) return (left and left.TYPE == "Constant") and (not right or isAConstant(right)) end
   local function isANumberOrAConstant(left, right)
     return (left and (isANumber(left) or isAConstant(left))) and (not right or isANumberOrAConstant(right))
   end
 
-  local type = expression.TYPE
+  local type = node.TYPE
   if type == "Operator" then
-    local value = expression.Value
-    local operand = expression.Operand
-    if operand then
-      local evaluatedOperand = compileTimeEvaluateExpression(operand)
-      if value == "#" and (evaluatedOperand.TYPE == "String" or evaluatedOperand.TYPE == "Table") then
-        if evaluatedOperand.TYPE == "Table" then
-          local elementCount = 0
-          for _ in pairs(evaluatedOperand.Values) do
-            elementCount = elementCount + 1
-          end
-
-          return addASTNumber(elementCount)
-        elseif evaluatedOperand.TYPE == "String" then
-          return addASTNumber(#evaluatedOperand.Value)
-        end
-      elseif value == "-" and isANumber(evaluatedOperand) then
-        return addASTNumber(-evaluatedOperand.Value)
-      end
-
-      -- Unsuported unary operator
-      return addASTUnaryOperator(value, evaluatedOperand)
-    end
-
-    local left = expression.Left
-    local right = expression.Right
+    local value = node.Value
+    local left = node.Left
+    local right = node.Right
+    
     local evaluatedLeft = compileTimeEvaluateExpression(left)
     local evaluatedRight = compileTimeEvaluateExpression(right)
  
+    if (evaluatedLeft.TYPE == "String" or evaluatedLeft.TYPE == "Number")
+     and (evaluatedRight.TYPE == "String" or evaluatedRight.TYPE == "Number") then
+      if value == ".." then
+        return addASTString(evaluatedLeft.Value .. evaluatedRight.Value)
+      end
+    end
+
     if not isANumberOrAConstant(evaluatedLeft, evaluatedRight) then
       return addASTOperator(value, evaluatedLeft, evaluatedRight)
     end
 
-    if value == "and" then
+    if value == "==" then
+      local result = (evaluatedLeft.Value == evaluatedRight.Value)
+      if not result or result == true then return addASTConstant(result) end
+    elseif value == "and" then
       local result = (evaluatedLeft.Value and evaluatedRight.Value)
       if not result or result == true then return addASTConstant(result) end     
       return addASTNumber(result)
@@ -81,16 +85,20 @@ local function compileTimeEvaluateExpression(expression)
       return addASTOperator(value, evaluatedLeft, evaluatedRight)
     end
     
-    if value == "+" then return addASTNumber(evaluatedLeft.Value + evaluatedRight.Value)
-    elseif value == "-" then return addASTNumber(evaluatedLeft.Value - evaluatedRight.Value)
-    elseif value == "/" then return addASTNumber(evaluatedLeft.Value / evaluatedRight.Value)
-    elseif value == "*" then return addASTNumber(evaluatedLeft.Value * evaluatedRight.Value)
-    elseif value == "^" then return addASTNumber(evaluatedLeft.Value ^ evaluatedRight.Value)
-    elseif value == "%" then return addASTNumber(evaluatedLeft.Value % evaluatedRight.Value)
+    if     value == "+"  then return addASTNumber  (evaluatedLeft.Value +  evaluatedRight.Value)
+    elseif value == "-"  then return addASTNumber  (evaluatedLeft.Value -  evaluatedRight.Value)
+    elseif value == "/"  then return addASTNumber  (evaluatedLeft.Value /  evaluatedRight.Value)
+    elseif value == "*"  then return addASTNumber  (evaluatedLeft.Value *  evaluatedRight.Value)
+    elseif value == "^"  then return addASTNumber  (evaluatedLeft.Value ^  evaluatedRight.Value)
+    elseif value == "%"  then return addASTNumber  (evaluatedLeft.Value %  evaluatedRight.Value)
+    elseif value == ">"  then return addASTConstant(evaluatedLeft.Value >  evaluatedRight.Value)
+    elseif value == "<"  then return addASTConstant(evaluatedLeft.Value <  evaluatedRight.Value)
+    elseif value == ">=" then return addASTConstant(evaluatedLeft.Value >= evaluatedRight.Value)
+    elseif value == "<=" then return addASTConstant(evaluatedLeft.Value <= evaluatedRight.Value)
     end
   elseif type == "FunctionCall" then
-    local arguments = expression.Arguments
-    local functionExpression = expression.Expression
+    local arguments = node.Arguments
+    local functionExpression = node.Expression
     for index, argument in ipairs(arguments) do
       arguments[index] = compileTimeEvaluateExpression(argument)
     end
@@ -98,7 +106,7 @@ local function compileTimeEvaluateExpression(expression)
     return addASTFunctionCall(evaluatedFunctionExpression, arguments)
   end
 
-  return expression
+  return node
 end
 
 --* Pass1 *--

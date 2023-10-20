@@ -18,7 +18,7 @@ function Pass2:new(astHierarchy)
 
   function Pass2Instance:isFunctionUsed(functionName, scope)
     -- It's a simple check, but it works for now.
-    local identifiers = scope:getDescendantsWithType("identifier")
+    local identifiers = scope:getDescendantsWithType("Identifier")
     for index, identifier in ipairs(identifiers) do
       if identifier.Value == functionName then
         return true

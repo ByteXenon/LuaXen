@@ -2,8 +2,6 @@
 
 Welcome to the Lua Compiler project, a comprehensive Lua compiler built with Lua. This project is a collaborative effort led by Luna, with significant contributions from Evan, guys from LGHCWare, and others.
 
-> **📜 License:** Currently under the Proprietary Open Source License, but will transition to MIT/GPL2 in the future.
-
 ## 🎯 About
 
 The Lua Compiler project is an ambitious endeavor to create a robust and flexible Lua compiler using Lua itself. The project aims to provide a comprehensive suite of tools for working with Lua code, from compilation and interpretation to beautification and optimization.
@@ -23,7 +21,7 @@ The project is built from scratch without any third-party libraries. All modules
 - **ASTHierarchy Module:** A module for better AST navigation.
 - **LEGACY Tools:** Legacy versions of our Decompiler, Static Analyzer, Instruction Generator.
 
-You can find examples in the `/Examples` directory.
+You can find some examples how to use different modules in the `/Examples` directory.
 
 ## 🗺️ Roadmap
 
@@ -55,10 +53,6 @@ To run the code, you need to install Lua 5.1 or higher.
 **What is the purpose of this project?**
 
 This project aims to transform/compile Lua(u) code of any version. It started as a hobby but has potential for future expansion.
-
-**Why a proprietary license?**
-
-Some contributors preferred not to have a GPL-free license, hence the current proprietary license.
 
 ## 📞 Contact
 

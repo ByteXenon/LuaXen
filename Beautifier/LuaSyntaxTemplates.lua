@@ -17,6 +17,7 @@ local stringTemplates = {
   Identifier = "{codeBlockIndentation}{value}",
   String = "{codeBlockIndentation}\"{value}\"",
   Number = "{codeBlockIndentation}{value}",
+  Constant = "{codeBlockIndentation}{constant}",
   Index = "{expression}.{index}",
 
   Operator = "{leftExpression} {value} {rightExpression}",
@@ -71,7 +72,7 @@ functionTemplates = {
     local currentIndentation = self:addSpaces()
 
     local elseIfsString = ""
-    for i,v in pairs(node.ElseIfs) do
+    for i,v in ipairs(node.ElseIfs) do
       local codeBlockString = self:processCodeBlock(v.CodeBlock, 1)
       local postCodeBlockIndentation = (codeBlockString == " " and "\n") or ""
 
