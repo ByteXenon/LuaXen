@@ -4,7 +4,16 @@ LuaXen is a toolkit for Lua programming language. It provides functionalities fo
 
 The project is built from scratch without any third-party libraries. All modules are designed to be as simple and follow as much good code practices as possible.
 
-## ⚙️ Features
+## Table of Contents:
+- **[Features](#features)**
+- **[Roadmap](#roadmap)**
+- **[Getting Started](#getting-started)**
+- **[Changelog](#changelog)**
+- - **[Beta 1.09](#beta-109---re-animation-of-the-dead-code) - "*RE-ANIMATION OF THE DEAD (code)!*"**
+- - **[Beta 1.08](#beta-108---the-humble-beginnings) - "*\~\~\~The humble beginnings\~\~\~*"**
+- **[FAQ](#faq)**
+
+## Features
 
 This project includes the following features:
 
@@ -17,9 +26,9 @@ This project includes the following features:
 - **ASTHierarchy Module:** A module for better AST navigation.
   **API:** An API designed to connect all modules together and make it easier to work with them.
 
-You can find some examples how to use different modules in the `/Examples` directory.
+You can find some examples how to use different modules in the `/examples` directory.
 
-## 🗺️ Roadmap
+## Roadmap
 
 We have big plans for the future of the Lua Compiler project:
 
@@ -45,13 +54,7 @@ We have big plans for the future of the Lua Compiler project:
 
 To run the code, you need to install Lua 5.1 or higher.
 
-## ❓ FAQ
-
-**What is the purpose of this project?**
-
-This project aims to transform/compile Lua(u) code of any version. It started as a hobby but has potential for future expansion.
-
-## 📝 Changelog
+## Changelog
 
 ### Beta 1.09 - "RE-ANIMATION OF THE DEAD (code)!"
 
@@ -72,3 +75,9 @@ This project aims to transform/compile Lua(u) code of any version. It started as
 - **Fixed AST to Instructions bug**: Fixed an annoying bug that was messing with the conversion of some Abstract Syntax Tree (AST) nodes to instructions. It should behave now (:<
 - **Enhanced VM Debugging**: Beefed up the Virtual Machine with more debugging support.
 - **Enabled API Debugging**: The API can now flex its muscles with VM debugging support.
+
+## FAQ
+
+**What is the purpose of this project?**
+
+This project aims to transform/compile Lua(u) code of any version. It started as a hobby but has potential for future expansion.
