@@ -6,35 +6,14 @@
 *.log
 *.tmp
 *_logs*
-/*test*.lua
-
-# Ignore those directories, they're not ready yet.
-/ByteCodeReader
-/Tests
-/Visual
-/templates
-/Schemes
-/Libraries
-
-# Too legacy to keep it alive
-/Interpreter/LuaInterpreter/Interpreter.lua
-/Interpreter/LuaInterpreter/SyntaxStatementParser.lua
-/Interpreter/ChainingParser
-/Interpreter/Synthax
-/Interpreter/*.lua
-/Optimizer/legacy*
-/Parser
-*__legacy_*
+/src/*test*.lua
 
 # Super private (I store my thesis there)
 *Private*
 *private*
 
-# Too trashy to even show that, sorry
-*_Trash*
-
-# tbh, too shy to show it now.
-/Documentation
+# Too insecure to show it now.
+/docs
 
 # Ignore IDE files
-*vscod*
+*vscode
