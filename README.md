@@ -25,7 +25,7 @@ This project includes the following features:
 - **Optimizer:** An optimizer for improving the performance of your Lua code (currently under development).
 - **ASTExecutor and Obfuscator:** Tools for executing abstract syntax trees and obfuscating code.
 - **ASTHierarchy Module:** A module for better AST navigation.
-  **API:** An API designed to connect all modules together and make it easier to work with them.
+- **API:** An API designed to connect all modules together and make it easier to work with them.
 
 You can find some examples how to use different modules in the `/examples` directory.
 
@@ -63,7 +63,7 @@ To run the code, you need to install Lua 5.1 or higher.
 - **Boosted all Lua Interpreter related modules**: We're on the brink of reaching the [self-hosting](https://en.wikipedia.org/wiki/Self-hosting_(compilers)) stage, and we're upgrading all modules related to the Lua Interpreter to get there.
 - **Put the Decompiler/ASTHierarchy modules on a temporary hiatus**: We're rewriting the Decompiler/ASTHierarchy modules module to follow as many good code practices as possible. They're completely broken in this version, due to heavily relying on AST nodes
 - **Revamped ASTExecutor from the ground up**: The ASTExecutor module has been completely rewritten for efficiency and ease of use. We're planning to make the entire project follow the new ASTExecutor's code style.
-- **Brought ASTExecutor to 99% completion**: We're working on the last 1% of the module, which involves fixing an Interpreter bug that incorrectly places index operators after logical statements.
+- **Brought ASTExecutor to 99% completion**: We're working on the last 1% of the module, which involves fixing [an Interpreter bug that incorrectly places index operators after logical statements](https://github.com/ByteXenon/LuaXen/issues/2).
 - **Initiated a complete project rewrite**: We're making massive changes to make the project as readable and easy to understand as possible. This is our second priority, right after making the project work as intended.
 - **& Much more**: This version has changed a lot of parts of the project, it's difficult to list them all here, so we recommend you to check out the code yourself. 
 - **What's next?** - We have big plans for this project and we're not stopping here. Upcoming features include:
@@ -97,4 +97,20 @@ And lastly, before this project gets too big and popular, I, Luna, would like to
 
 **What is the purpose of this project?**
 
-This project aims to transform/compile Lua(u) code of any version. It started as a hobby but has potential for future expansion.
+This project aims to transform/compile/deobfuscate/etc. Lua(u) code of any version. It started as a hobby but has potential for future expansion.
+
+**What is the current status of this project?**
+
+This project is currently in beta, and is not ready for production use. We're working on it, but it will take some time.
+
+**Can you deobfuscate ...?**
+
+We're working on it, but it's not ready yet, we're not your personal army or deobfuscating service, so please don't ask us to deobfuscate your code.
+
+**Can I contribute?**
+
+Yes, you can! We're always looking for new contributors, so feel free to fork this project and make a pull request. We'll review it as soon as possible.
+
+**Can I use this project in my own project?**
+
+Yes, feel free to use this project in your own project. Basically, you can do whatever you want with this project, as long as you credit us, and follow the license of this project.
