@@ -1,7 +1,7 @@
 --[[
   Name: Helpers.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-10-XX
+  Date: 2023-11-XX
 ]]
 
 --* Export library functions *--
@@ -15,16 +15,17 @@ local floor = math.floor
 local max = math.max
 local insert = table.insert
 local concat = table.concat
-local unpack = unpack or table.unpack
+local unpack = (unpack or table.unpack)
 
 --* Library object *--
 local Helpers = {}
 
---* Functions *--
-
--- Inverts the keys and values of a table.
--- Example: {h:"e", l:"l", o:"!"} -> {e:"h", l:"l", "!":"o"}
+--- Inverts the keys and values of a table.
+-- @param table inputTable The table to invert.
+-- @return table The inverted table.
 function Helpers.InvertTableKeyValue(inputTable)
+  assert(type(inputTable) == "table", "inputTable must be a table")
+
   local newTable = {}
   for index, value in pairs(inputTable) do
     newTable[value] = index
@@ -33,9 +34,12 @@ function Helpers.InvertTableKeyValue(inputTable)
   return newTable
 end
 
--- Reverses the order of elements in a numeric indexed table.
--- Example: {1,2,3} -> {3,2,1}
+--- Reverses the order of elements in a numeric indexed table.
+-- @param table inputTable The table to reverse.
+-- @return table The reversed table.
 function Helpers.ReverseNumericTable(inputTable)
+  assert(type(inputTable) == "table", "inputTable must be a table")
+
   local newTable = {}
   for index = 1, #inputTable, 1 do
     local value = inputTable[index]
@@ -44,15 +48,25 @@ function Helpers.ReverseNumericTable(inputTable)
   return newTable
 end
 
--- Insert values from table2 to table1
+--- Merges values from table2 to table1.
+-- @param table table1 The table to merge into.
+-- @param table table2 The table to merge from.
 function Helpers.MergeTable(table1, table2)
+  assert(type(table1) == "table", "table1 must be a table")
+  assert(type(table2) == "table", "table2 must be a table")
+
   for _, value in ipairs(table2) do
     insert(table1, value)
   end
 end
 
--- Find a value in a table
+--- Finds a value in a table.
+-- @param table Table The table to search.
+-- @param Value The value to search for.
+-- @return number|nil The index of the value in the table, or nil if not found.
 function Helpers.TableFind(Table, Value)
+  assert(type(Table) == "table", "Table must be a table")
+
   for Index, TableValue in pairs(Table) do
     if Value == TableValue then
       return Index
@@ -61,8 +75,16 @@ function Helpers.TableFind(Table, Value)
   return nil
 end
 
--- Get multiple elements from a table and insert them into another table
+--- Gets multiple elements from a table and inserts them into another table.
+-- @param table Table The table to get elements from.
+-- @param number min The minimum index to get.
+-- @param number max The maximum index to get.
+-- @return table The table containing the elements.
 function Helpers.GetTableElementsFromTo(Table, min, max)
+  assert(type(Table) == "table", "Table must be a table")
+  assert(type(min) == "number", "min must be a number")
+  assert(type(max) == "number", "max must be a number")
+
   local tb = {}
   for i = min, max do
     insert(tb, Table[i])
@@ -70,8 +92,12 @@ function Helpers.GetTableElementsFromTo(Table, min, max)
   return tb
 end
 
--- Clone a table and all values in it
+--- Clones a table and all values in it.
+-- @param table Table The table to clone.
+-- @return table The cloned table.
 function Helpers.TableClone(Table)
+  assert(type(Table) == "table", "Table must be a table")
+
   local Recursion;
   function Recursion(Table)
     local ClonedTable = {}
@@ -87,10 +113,16 @@ function Helpers.TableClone(Table)
   return Recursion(Table)
 end
 
--- Find Table1 indicies in stream of Table2 values,
--- with the higher priority for more lengthy values.
--- Really useful in token matching.
+--- Finds Table1 indices in stream of Table2 values, with the higher priority for more lengthy values.
+-- @param table Table1 The table containing the indices to search for.
+-- @param table Table2 The table containing the values to search in.
+-- @param number Table2Index The starting index in Table2.
+-- @return string|nil The best match found in Table2, or nil if no match found.
 function Helpers.TableIndexSearch(Table1, Table2, Table2Index)
+  assert(type(Table1) == "table", "Table1 must be a table")
+  assert(type(Table2) == "table", "Table2 must be a table")
+  assert(type(Table2Index) == "number", "Table2Index must be a number")
+
   local BestMatch = "";
   for Index in pairs(Table1) do
     local Table2CompIndex = Table2Index
@@ -110,10 +142,12 @@ function Helpers.TableIndexSearch(Table1, Table2, Table2Index)
   return (BestMatch ~= "" and BestMatch)
 end
 
--- Apparently Lua stops at gaps in tables
--- so table {1, nil, 3, 4} would have length of 1
--- my method is slower but better.
+--- Gets the length of a table.
+-- @param table Table The table to get the length of.
+-- @return number The length of the table.
 function Helpers.TableLen(Table)
+  assert(type(Table) == "table", "Table must be a table")
+
   local TableLength = 0
   for Index, Value in pairs(Table) do
     TableLength = TableLength + 1
@@ -121,24 +155,39 @@ function Helpers.TableLen(Table)
   return TableLength
 end
 
--- Clear all element of a table without copying it
+--- Clears all elements of a table without copying it.
+-- @param table Table The table to clear.
+-- @return table The cleared table.
 function Helpers.ClearTable(Table)
+  assert(type(Table) == "table", "Table must be a table")
+
   for Index, _ in pairs(Table) do
     Table[Index] = nil
   end
   return Table
 end
 
--- Copy first-level values from Table1 to Table2
+--- Copies first-level values from Table1 to Table2.
+-- @param table Table1 The table to copy from.
+-- @param table Table2 The table to copy to.
+-- @return table The table containing the copied values.
 function Helpers.CopyTableElements(Table1, Table2)
+  assert(type(Table1) == "table", "Table1 must be a table")
+  assert(type(Table2) == "table", "Table2 must be a table")
+
   for Index, Value in pairs(Table1) do
     Table2[Index] = Value
   end
   return Table2
 end
 
--- Convert a table to a string, recursively
+--- Converts a table to a string, recursively.
+-- @param table Table The table to convert.
+-- @param[opt=2] number Spacing The number of spaces to use for indentation.
+-- @return string The string representation of the table.
 function Helpers.StringifyTable(Table, Spacing)
+  assert(type(Table) == "table", "Table must be a table")
+
   local Spacing = Spacing or 2
   local SpacingString = rep(" ", Spacing)
 
@@ -174,7 +223,9 @@ function Helpers.StringifyTable(Table, Spacing)
   return "{\n" .. VisitTable(Table, 1) .. "\n}"
 end
 
--- Serialize a value to a string
+--- Serializes a value to a string.
+-- @param Value The value to serialize.
+-- @return string The serialized value.
 function Helpers.SerializeValue(Value)
   local Value = Value
   local ValueType = type(Value)
@@ -190,10 +241,13 @@ function Helpers.SerializeValue(Value)
   end
 end
 
---
+--- Converts a table to a pretty string.
+-- @param table tableData The table to convert.
+-- @return string The pretty string representation of the table.
 function Helpers.TableToPrettyString(tableData)
-  local SerializeValue = Helpers.SerializeValue
+  assert(type(tableData) == "table", "tableData must be a table")
 
+  local SerializeValue = Helpers.SerializeValue
   -- Calculate the maximum length of each column
   for _, row in pairs(tableData) do
     for key, value in pairs(row) do
@@ -242,13 +296,15 @@ function Helpers.TableToPrettyString(tableData)
   return csvStyleString
 end
 
--- Recursively compare two tables
+--- Recursively compares two tables.
+-- @param table Table The first table to compare.
+-- @param table ... The other tables to compare.
+-- @return boolean Whether the tables are equal.
 function Helpers.TablesEqual(Table, ...)
-  local CheckTables;
-  local CheckValue;
-
+  assert(type(Table) == "table", "Table must be a table")
+  
   local Tables = {...}
-  function CheckValue(Table1, Table2, Index)
+  local function CheckValue(Table1, Table2, Index)
     local Value1 = Table1[Index]
     local Value2 = Table2[Index]
     if type(Value1) == "table" and type(Value2) == "table" then
@@ -263,48 +319,34 @@ function Helpers.TablesEqual(Table, ...)
   return true
 end
 
--- This function concats multiple lines with the same spacing
-function Helpers.AlignLines(Table)
-  -- Find the longest string in each column
-  local MaxLengths = {}
-  for _, Row in pairs(Table) do
-    for Column, Value in pairs(Row) do
-      local Length = len(tostring(Value))
-      if not MaxLengths[Column] or Length > MaxLengths[Column] then
-        MaxLengths[Column] = Length
-      end
-    end
-  end
-
-  -- Concat each line with the same spacing
-  local Lines = {}
-  for _, Row in pairs(Table) do
-    local Line = {}
-    for Column, Value in pairs(Row) do
-      local Spacing = rep(" ", MaxLengths[Column] - len(Value))
-      insert(Line, Value .. Spacing)
-    end
-    insert(Lines, concat(Line, ""))
-  end
-
-  return concat(Lines, "\n")
-end
-
--- Read a file from a given path
+--- Reads a file from a given path.
+-- @param string FilePath The path of the file to read.
+-- @return string The contents of the file.
 function Helpers.ReadFile(FilePath)
+  assert(type(FilePath) == "string", "FilePath must be a string")
+
   local Contents = io.open(FilePath, "r"):read("*a")
   return Contents
 end
 
--- Write contents to a file with a given path
+--- Writes contents to a file with a given path.
+-- @param string FilePath The path of the file to write to.
+-- @param string Contents The contents to write to the file.
 function Helpers.WriteFile(FilePath, Contents)
+  assert(type(FilePath) == "string", "FilePath must be a string")
+  assert(type(Contents) == "string", "Contents must be a string")
+
   return io.open(FilePath, "w"):write(Contents)
 end
 
--- Python-like string format function
+--- Formats a string with given arguments.
+-- @param string String The string to format.
+-- @param ... The arguments to format the string with.
+-- @return string The formatted string.
 function Helpers.StringFormat(String, ...)
-  local Args = {...}
+  assert(type(String) == "string", "String must be a string")
 
+  local Args = {...}
   local String = gsub(String, "{([\1-\124\126-\255]+)}", function(FormatValue)
     local Number = tonumber(FormatValue)
     if Number then
@@ -317,40 +359,37 @@ function Helpers.StringFormat(String, ...)
   return String
 end
 
--- Error function with formatted error message
+--- DEPRECATED: Throws an error with a formatted error message.
+-- @param string errorString The error message to format.
+-- @param ... The arguments to format the error message with.
 function Helpers.FormattedError(errorString, ...)
-  return error(Helpers.StringFormat(errorString, ...))
+  error(Helpers.StringFormat(errorString, ...))
 end;
 
---
+--- Prints a table with aligned columns.
+-- @param table Table The table to print.
 function Helpers.PrintAligned(Table)
+  assert(type(Table) == "table", "Table must be a table")
+
   print(Helpers.AlignLines(Table))
 end
 
+--- Converts a table to a string with a given spacing.
+-- @param table Table The table to convert.
+-- @param? number Spacing The spacing between columns.
+-- @return string The string representation of the table.
 function Helpers.PrintTable(Table, Spacing)
+  assert(type(Table) == "table", "Table must be a table")
+
   return print(Helpers.StringifyTable(Table, Spacing))
 end
 
-function Helpers.SerializeValue(value)
-  local valueType = type(value)
-  if valueType == "string" then
-    value = value:gsub("\\'", "\1<QUOTE>\1")
-    value = value:gsub("'", "\'")
-    value = value:gsub("\1<QUOTE>\1", "\\'")
-    return "'" .. value .. "'"
-  elseif valueType == "table" then
-    return Helpers.StringifyTable(value)
-  elseif valueType == "function" then
-    return "function()" .. Helpers.StringifyTable(debug.getinfo(value))
-  end
-
-  return tostring(value)
-end
---
-
--- Split strings to lines,
--- put the lines in a table
+--- Splits a string into lines and puts them in a table.
+-- @param string String The string to split.
+-- @return table The table of lines.
 function Helpers.GetLines(String)
+  assert(type(String) == "string", "String must be a string")
+
   local Lines = {}
   for Line in gmatch(String, "([\1-\9\11-\255]+)") do
     insert(Lines, Line)
@@ -358,10 +397,12 @@ function Helpers.GetLines(String)
   return Lines
 end
 
--- Unfortunately Lua won't let you access
--- individual characters by using MyString[2],
--- like in tables. This function fixes that
+--- Converts a string to a table of characters.
+-- @param string String The string to convert.
+-- @return table The table of characters.
 function Helpers.StringToTable(String)
+  assert(type(String) == "string", "String must be a string")
+
   local Table = {}
   local index = 1
   for Char in gmatch(String, ".") do
@@ -371,9 +412,12 @@ function Helpers.StringToTable(String)
   return Table
 end
 
--- The same as the StringToTable() but
--- with more OOP
+--- Creates a string object with additional methods.
+-- @param string String The string to convert to a string object.
+-- @return table The string object.
 function Helpers.StringObject(String)
+  assert(type(String) == "string", "String must be a string")
+
   local NewTable = Helpers.StringToTable(String)
 
   NewTable["Index"] = 1
@@ -392,6 +436,9 @@ function Helpers.StringObject(String)
   return NewTable
 end
 
+--- Converts a range of characters to a table of characters.
+-- @param ... The ranges of characters to convert.
+-- @return table The table of characters.
 function Helpers.RangesToChars(...)
   local Characters = {}
   for i,v in pairs({...}) do

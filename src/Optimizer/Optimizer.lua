@@ -1,17 +1,18 @@
 --[[
   Name: Optimizer.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-09-XX
+  Date: 2023-10-XX
 --]]
 
 --* Dependencies *--
-local Helpers = require("Helpers/Helpers")
-local OPCodes = require("OPCodes/Main")
+local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Optimizer/Optimizer")
+local ASTOptimizer = ModuleManager:loadModule("Optimizer/ASTOptimizer/ASTOptimizer")
 
---* Export library functions *--
-local Unpack = unpack or table.unpack
-local Find = table.find or Helpers.TableFind
+--* Optimizer *--
+local Optimizer = {}
+function Optimizer:optimizeAST(ast)
+  local newASTOptimizerInstance = ASTOptimizer:new(ast)
+  return newASTOptimizerInstance:run()
+end
 
-local Optimizer = Class{
-
-}
+return Optimizer

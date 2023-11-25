@@ -1,42 +1,40 @@
 --[[
   Name: ModuleManager.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-10-XX
+  Date: 2023-11-XX
 --]]
 
-local Aliases = require("ModuleManager/Aliases")
-local Preloaded = require("ModuleManager/Preloaded")
-
+--* Export library functions *--
 local insert = table.insert
 
 --* ModuleManager *--
 local ModuleManager = {}
+ModuleManager.pathPrefix = ""
 ModuleManager.modules = {}
-ModuleManager.aliases = {}
 ModuleManager.dependencyLog = {}
 ModuleManager.fileDependencies = {}
 
 local function loadModule(path)
-  local fullModulePath = ModuleManager.aliases[path] or path
+  local fullModulePath = path
   local loadedModule = ModuleManager.modules[fullModulePath];
   if not loadedModule then
     ModuleManager.modules[fullModulePath] = {}
     loadedModule = require(fullModulePath)
     ModuleManager.modules[fullModulePath] = loadedModule
   end
+
   return loadedModule
 end
 
 function ModuleManager:newFile(originalFilePath, dependencies)
   local moduleInstance = {}
-
   -- Initialize dependency log for the file
   ModuleManager.dependencyLog[originalFilePath] = {}
   ModuleManager.fileDependencies[originalFilePath] = dependencies or {}
   moduleInstance.currentDependencyLog = ModuleManager.dependencyLog[originalFilePath]
   moduleInstance.currentFileDependencies = ModuleManager.fileDependencies[originalFilePath]
   moduleInstance.globalDependencyLog = ModuleManager.dependencyLog
-
+  
   function moduleInstance:loadModule(path)
     local loadedModule = loadModule(path)
     insert(self.currentDependencyLog, path)
@@ -57,17 +55,8 @@ function ModuleManager:newFile(originalFilePath, dependencies)
 
   return moduleInstance
 end
-function ModuleManager:preloadModules(preloaded)
-  local preloadedModules = preloaded or Preloaded
-  for _, modulePath in ipairs(preloadedModules) do
-    loadModule(modulePath)
-  end
-end
-function ModuleManager:setAliases(aliases)
-  local aliases = aliases or Aliases
-  for alias, realPath in pairs(aliases) do
-    ModuleManager.aliases[alias] = realPath
-  end
+function ModuleManager:setPathPrefix(pathPrefix)
+  self.pathPrefix = pathPrefix
 end
 
 return ModuleManager

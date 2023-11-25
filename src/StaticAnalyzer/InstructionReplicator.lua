@@ -23,7 +23,7 @@ function InstructionReplicator:new()
   function InstructionReplicatorInstance:replicateInstruction(opname, a, b, c)
     self:InstructionFunctionality[opname](a, b, c)
   end
-  
+
   return InstructionReplicatorInstance
 end
 

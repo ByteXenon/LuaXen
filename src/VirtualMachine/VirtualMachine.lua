@@ -1,7 +1,7 @@
 --[[
   Name: VirtualMachine.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-10-XX
+  Date: 2023-11-XX
 --]]
 
 --* Dependencies *--
@@ -11,16 +11,25 @@ local Helpers = ModuleManager:loadModule("Helpers/Helpers")
 local InstructionFunctionality = ModuleManager:loadModule("VirtualMachine/InstructionFunctionality")
 local LuaState = ModuleManager:loadModule("LuaState/LuaState")
 
-local CreateTableDecorator = Helpers.CreateTableDecorator
+--* Export library functions *--
+local createTableDecorator = Helpers.CreateTableDecorator
 local abs = math.abs
 local insert = table.insert
+local unpack = (unpack or table.unpack)
 
 --* VirtualMachine *--
 local VirtualMachine = {}
+
+--- Creates a new instance of the VirtualMachine class.
+--- @param luaState table The Lua state table.
+--- @param debug boolean Whether to enable debugging or not.
+--- @return VirtualMachine The new instance of the VirtualMachine class.
 function VirtualMachine:new(luaState, debug)
   local VirtualMachineInstance = {}
 
   local newConstants = {}
+  -- Normalize the constants table
+  -- all constants are stored in the negative indices
   for i,v in pairs(luaState.constants) do
     newConstants[-abs(i)] = v
   end
@@ -72,7 +81,7 @@ function VirtualMachine:new(luaState, debug)
     local VMSelf = self
     local stackTraceTb = self.stackTraceTb
     local originalRegister = self.state.register
-    local registerDecorator = CreateTableDecorator(originalRegister)
+    local registerDecorator = createTableDecorator(originalRegister)
 
      registerDecorator:__AddEvent("Index", function(self, index)
       local state = VMSelf.state

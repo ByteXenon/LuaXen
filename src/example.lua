@@ -5,10 +5,13 @@ local luaAPI = require("api")
 do
   -- Parse the assembly code into a Lua state
   local luaState = luaAPI.Assembler.Parse([[
+    PRINT_FUNC: "print"
+    PRINT_MSG: "Hello, world!"
+
     ; Define a function that prints a message
     _my_func: {
-      GETGLOBAL 0, "print"
-      LOADK 1, "Hello, world!"
+      GETGLOBAL 0, PRINT_FUNC
+      LOADK 1, PRINT_MSG
       CALL 0, 2, 1
     }
 
@@ -25,12 +28,7 @@ end
 do
   -- Convert the Lua code into instructions and create a Lua state
   local luaScriptState = luaAPI.Interpreter.ConvertToInstructions([[
-    -- Define a function
-    local function _my_func()
-      print("Hello, world!")
-    end
-
-    _my_func()
+    print("Hello, world!")
   ]])
 
   -- Execute the Lua state

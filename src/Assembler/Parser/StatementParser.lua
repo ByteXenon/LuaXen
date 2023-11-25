@@ -1,19 +1,26 @@
 --[[
   Name: StatementParser.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-10-XX
+  Date: 2023-11-XX
+  Description:
+    This module is a part of a pseudo-assembly language parser,
+    specifically responsible for parsing individual assembly statements.
+    It handles identifiers, labels, and instructions, and also manages the parsing
+    of different types of labels (function, string, and number labels).
+    It also provides utility functions for instruction parameters handling and token manipulation.
 --]]
 
 --* Dependencies *--
 local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Assembler/Parser/StatementParser")
 
 local Helpers = ModuleManager:loadModule("Helpers/Helpers")
-local assemblyParser = ModuleManager:loadModule("Assembler/Parser/Parser")
+-- Don't load the Parser module here, as it would cause a circular dependency
+local Parser = nil and ModuleManager:loadModule("Assembler/Parser/Parser")
 
 --* Export library functions *--
-local find = Helpers.TableFind
 local insert = table.insert
 local concat = table.concat
+local unpack = (unpack or table.unpack)
 
 --* Local functions *--
 local function copyTable(table1)
@@ -35,7 +42,7 @@ end
   }
 ]]
 
--- * Parser * --
+--* StatementParser *--
 local StatementParser = {};
 function StatementParser:identifier()
   local identifierValue = self.curToken.Value
@@ -47,6 +54,7 @@ function StatementParser:identifier()
   end
   return self:instruction()
 end
+
 function StatementParser:label(labelName)
   if self:compareToken(self.curToken, "Character", "{") then
     return self:labelFunction(labelName)
@@ -55,10 +63,12 @@ function StatementParser:label(labelName)
   elseif self:compareToken(self.curToken, "Number") then
     return self:labelNumber(labelName)
   end
-  error("Invalid token")
+  return error("Invalid token: " .. tostring(self.curToken.TYPE))
 end
 
 function StatementParser:labelFunction(labelName)
+  local Parser = ModuleManager:loadModule("Assembler/Parser/Parser")
+
   self:consume() -- Consume "{"
   -- Get nodes between curly braces
   local functionTokens = {}
@@ -71,7 +81,7 @@ function StatementParser:labelFunction(labelName)
   local labelsCopy = copyTable(self.labels)
   local constantsCopy = copyTable(self.luaState.constants)
   -- Make a new assembly parser instance
-  local newAssemblyParser = assemblyParser:new(functionTokens)
+  local newAssemblyParser = Parser:new(functionTokens)
   -- Share copied labels and constants with the new assembly parser instance
   newAssemblyParser.labels = labelsCopy
   newAssemblyParser.luaState.constants = constantsCopy
@@ -79,22 +89,24 @@ function StatementParser:labelFunction(labelName)
   insert(self.luaState.protos, proto)
   self.labels[labelName] = #self.luaState.protos
 end
+
 function StatementParser:labelString(labelName)
   local stringValue = self.curToken.Value
-  self.labels[labelName] = self:findOrCreateConstant(stringValue)
+  self.labels[labelName] = self:findOrCreateConstant(tostring(stringValue))
 end
+
 function StatementParser:labelNumber(labelName)
   local numberValue = self.curToken.Value
-  self.labels[labelName] = self:findOrCreateConstant(numberValue)
+  self.labels[labelName] = self:findOrCreateConstant(tonumber(numberValue))
 end
 
 function StatementParser:instructionParams()
   local params = { }
   local function insertParam(token)
     local tokenValue = token.Value
-    local tokenType = token.Type
+    local tokenType = token.TYPE
     if tokenType == "Identifier" then
-      tokenValue = self.labels[tokenValue] or 0
+      tokenValue = self.labels[tokenValue]
     elseif tokenType == "String" then
       tokenValue = self:findOrCreateConstant(tokenValue)
     end
@@ -103,9 +115,11 @@ function StatementParser:instructionParams()
 
   -- Each instruction requires at least one param
   insertParam(self.curToken)
-  if self:compareToken(self:peek(), "Character", ",") then
+  local nextChar = self:peek()
+  if self:compareToken(nextChar, "Character", ",") then
     self:consume() -- Consume the first param
     self:consume() -- Consume the comma
+
     -- Get params if they're separated by a comma
     repeat
       insertParam(self.curToken)
@@ -114,6 +128,7 @@ function StatementParser:instructionParams()
 
   return params
 end
+
 function StatementParser:instruction()
   local instructionName = self.curToken.Value
   self:consume() -- Consume instruction name

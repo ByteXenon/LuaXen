@@ -1,7 +1,7 @@
 --[[
   Name: NodeMethodsFunctions.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-10-XX
+  Date: 2023-11-XX
 --]]
 
 --* Dependencies *--
@@ -14,6 +14,7 @@ local Printer = ModuleManager:loadModule("Printer/Printer")
 
 --* Export library functions *--
 local insert = table.insert
+local unpack = (unpack or table.unpack)
 
 --* Local functions *--
 local function addMethodsToNode(node)

@@ -1,13 +1,14 @@
 --[[
   Name: ASTToTokensConverter.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-10-XX
+  Date: 2023-11-XX
 --]]
 
 --* Dependencies *--
 local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Interpreter/LuaInterpreter/ASTToTokensConverter/ASTToTokensConverter")
 local Helpers = ModuleManager:loadModule("Helpers/Helpers")
 
+local TokenFactory = ModuleManager:loadModule("Interpreter/LuaInterpreter/ASTToTokensConverter/TokenFactory")
 local NodeTokenTemplates = ModuleManager:loadModule("Interpreter/LuaInterpreter/ASTToTokensConverter/NodeTokenTemplates")
 local Lexer = ModuleManager:loadModule("Interpreter/LuaInterpreter/Lexer/Lexer")
 local Parser = ModuleManager:loadModule("Interpreter/LuaInterpreter/Parser/Parser")
@@ -28,32 +29,12 @@ function ASTToTokensConverter:new(astHierarchy)
 
   ASTToTokensConverterInstance.ast = astHierarchy
 
-  function ASTToTokensConverterInstance:newKeyword(value)
-    return { TYPE = "Keyword", Value = value }
-  end
-  function ASTToTokensConverterInstance:newConstant(value)
-    return { TYPE = "Constant", Value = tostring(value) }
-  end
-  function ASTToTokensConverterInstance:newIdentifier(value)
-    return { TYPE = "Identifier", Value = value }
-  end
-  function ASTToTokensConverterInstance:newString(value)
-    return { TYPE = "String", Value = value }
-  end
-  function ASTToTokensConverterInstance:newOperator(value)
-    return { TYPE = "Operator", Value = value }
-  end
-  function ASTToTokensConverterInstance:newCharacter(value)
-    return { TYPE = "Character", Value = value }
-  end
-  function ASTToTokensConverterInstance:newNumber(value)
-    return { TYPE = "Number", Value = value }
-  end
-
   function ASTToTokensConverterInstance:tokenizeNode(node)
     local nodeType = node.TYPE
     local nodeFunc = self[nodeType]
-    if not nodeFunc then error(("Invalid token type: %s"):format(tostring(nodeType))) end
+    if not nodeFunc then
+      return error(("Invalid token type: %s"):format(nodeType or "nil"))
+    end
     local tokens = {}
     nodeFunc(self, tokens, node)
 

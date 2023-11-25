@@ -1,132 +1,287 @@
 --[[
   Name: InstructionGenerator.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-10-XX
+  Date: 2023-11-XX
+  Description:
+    This is the main file of the InstructionGenerator.
+    It will convert the AST to Lua VM instructions.
 --]]
 
 --* Dependencies *--
 local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Interpreter/LuaInterpreter/InstructionGenerator/InstructionGenerator")
 local Helpers = ModuleManager:loadModule("Helpers/Helpers")
 
-local ExpressionEvaluator = ModuleManager:loadModule("Interpreter/LuaInterpreter/InstructionGenerator/ExpressionEvaluator")
-local NodeToInstructionsConverter = ModuleManager:loadModule("Interpreter/LuaInterpreter/InstructionGenerator/NodeCompilers/NodeToInstructionsConverter")
-local ScopeState = ModuleManager:loadModule("Interpreter/LuaInterpreter/InstructionGenerator/ScopeState")
+local ScopeManager = ModuleManager:loadModule("Interpreter/LuaInterpreter/InstructionGenerator/ScopeManager")
 local LuaState = ModuleManager:loadModule("LuaState/LuaState")
+local NodeToInstructionsConverter = ModuleManager:loadModule("Interpreter/LuaInterpreter/InstructionGenerator/NodeCompilers/NodeToInstructionsConverter")
+local ExpressionToInstructionsConverter = ModuleManager:loadModule("Interpreter/LuaInterpreter/InstructionGenerator/NodeCompilers/ExpressionToInstructionsConverter")
 
 --* Export library functions *--
 local stringifyTable = Helpers.StringifyTable
 local find = table.find or Helpers.TableFind
 local insert = table.insert
 
+--* InstructionGeneratorMethods *--
+local InstructionGeneratorMethods = {}
+
+--////// Register stuff //////--
+
+-- Get the lowest register that is not marked as used yet.
+-- We don't use #self.registers, because it's
+-- not guaranteed for registers to be consecutive (which is bad of course)
+function InstructionGeneratorMethods:getNextFreeRegister()
+  -- We start at 0, because registers start at 0.
+  local curIndex = 0
+  while true do
+    if not self.registers[curIndex] then
+      return curIndex
+    end
+    curIndex = curIndex + 1
+  end
+end
+
+-- Mark a register as temporarily taken
+-- it doesn't actually hold a value, just an attempt of static analysis
+function InstructionGeneratorMethods:allocateRegister()
+  local registerIndex = self:getNextFreeRegister() -- In case we change the allocation method
+  self.registers[registerIndex] = true
+  return registerIndex
+end
+
+-- Mark a register as free
+-- It allows to pass constant indices as well, but they are ignored
+function InstructionGeneratorMethods:deallocateRegister(registerIndex)
+  if not registerIndex then return end
+  -- We don't deallocate constants
+  if registerIndex < 0 then return end
+
+  self.registers[registerIndex] = nil
+end
+
+-- Mark a list of registers as free
+-- It allows to pass constant indices as well, but they are ignored
+function InstructionGeneratorMethods:deallocateRegisters(registers)
+  for _, register in ipairs(registers) do
+    self:deallocateRegister(register)
+  end
+end
+
+-- Mark a register as temporarily taken
+function InstructionGeneratorMethods:allocateTemporaryRegister()
+  local registerIndex = self:allocateRegister()
+  insert(self.temporaryRegisters, registerIndex)
+  return registerIndex
+end
+
+-- Clear all temporary registers
+function InstructionGeneratorMethods:clearTemporaryRegisters()
+  self:deallocateRegisters(self.temporaryRegisters)
+  self.temporaryRegisters = {}
+end
+
+-- Error if there are any temporary registers left
+function InstructionGeneratorMethods:checkForLeaks()
+  if #self.temporaryRegisters > 0 then
+    return error("Temporary registers leaked: " .. stringifyTable(self.temporaryRegisters))
+  end
+end
+
+--////// Scope stuff //////--
+
+-- Add a constant to the constant table, if it's not already there.
+-- Returns the index of the constant.
+function InstructionGeneratorMethods:findOrAddConstant(constantValue)
+  local constants = self.luaState.constants
+  local constantIndex = find(constants, constantValue)
+  if not constantIndex then
+    insert(constants, constantValue)
+    constantIndex = #constants
+  end
+  return -constantIndex
+end
+
+--////// Instruction stuff //////--
+
+-- Add an instruction to the luaState.instructions table
+function InstructionGeneratorMethods:addInstruction(opName, a, b, c)
+  insert(self.luaState.instructions, { opName, a, b, c })
+  return #self.luaState.instructions
+end
+
+-- Add a list of instructions to the luaState.instructions table
+function InstructionGeneratorMethods:addInstructions(instructionTable)
+  local instructions = self.luaState.instructions
+  for _, instruction in ipairs(instructionTable) do
+    insert(instructions, instruction)
+  end
+end
+
+-- Change an instruction in the luaState.instructions table
+function InstructionGeneratorMethods:changeInstruction(instructionIndex, opName, a, b, c)
+  local oldInstruction = self.luaState.instructions[instructionIndex]
+  local newInstruction = {opName, a, b, c}
+
+  -- If there's no value, use the old value instead
+  for i = 1, 4 do
+    if not newInstruction[i] then
+      newInstruction[i] = oldInstruction[i]
+    end
+  end
+
+  self.luaState.instructions[instructionIndex] = newInstruction
+end
+
+-- Get instructions within a range, it will be used to get instructions that
+-- were generated by individual expression/statement functions.
+function InstructionGeneratorMethods:getInstructionsFromRange(startIndex, endIndex)
+  local instructions = self.luaState.instructions
+  local instructionTable = {}
+
+  for index = startIndex, endIndex do
+    insert(instructionTable, instructions[index])
+  end
+  return instructionTable
+end
+
+-- Remove instructions within a range and return them, it will be used to remove instructions that
+-- were generated by individual expression/statement functions.
+function InstructionGeneratorMethods:removeInstructionsFromRange(startIndex, endIndex)
+  local instructions = self.luaState.instructions
+  local instructionTable = {}
+
+  for index = startIndex, endIndex do
+    insert(instructionTable, instructions[index])
+    instructions[index] = nil
+  end
+  return instructionTable
+end
+
+--////// Expression stuff //////--
+
+-- Process an expression node (e.g. Identifier, Number, Operator)
+function InstructionGeneratorMethods:processExpressionNode(node, canReturnConstantIndex, returnGeneratedInstructions)
+  local type = node.TYPE
+  local oldInstructionCount = #self.luaState.instructions
+
+  -- Sincce "Expression" is just a placeholder node for expressions
+  -- we can skip it, so we take the child (Value) node instead.
+  if type == "Expression" then
+    node = node.Value
+    type = node.TYPE
+  end
+
+  local expressionMethod = self.expressions[type]
+
+  if not expressionMethod then
+    return error("Unsupported expression node type: " .. type)
+  end
+
+  local returnRegister = expressionMethod(self, node, canReturnConstantIndex)
+  -- Check for leaks, all node methods must clear
+  -- their temporary registers before returning
+  self:checkForLeaks()
+
+  if returnGeneratedInstructions then
+    local newInstructionCount = #self.luaState.instructions
+    local generatedInstructions = self:getInstructionsFromRange(oldInstructionCount + 1, newInstructionCount)
+    return returnRegister, generatedInstructions
+  end
+
+  return returnRegister
+end
+
+--////// Node stuff //////--
+
+-- Process a statement node (e.g. FunctionCall, ReturnStatement, - everything in code blocks)
+function InstructionGeneratorMethods:processStatementNode(node, returnGeneratedInstructions)
+  local type = node.TYPE
+  local oldInstructionCount = #self.luaState.instructions
+  local statementMethod = self.statements[type]
+
+  if not statementMethod then
+    return error("Unsupported statement node type: " .. type)
+  end
+
+  statementMethod(self, node)
+  -- Check for leaks, all node methods must clear
+  -- their temporary registers before returning
+  self:checkForLeaks()
+
+  if returnGeneratedInstructions then
+    local newInstructionCount = #self.luaState.instructions
+    local generatedInstructions = self:getInstructionsFromRange(oldInstructionCount + 1, newInstructionCount)
+    return generatedInstructions
+  end
+end
+
+-- Process a list of statement nodes from a code block
+function InstructionGeneratorMethods:processCodeBlock(nodeList, returnGeneratedInstructions)
+  local oldInstructionCount = #self.luaState.instructions
+
+  self:pushScope()
+
+  for _, node in ipairs(nodeList) do
+    self:processStatementNode(node)
+  end
+
+  self:popScope()
+  
+  if returnGeneratedInstructions then
+    local newInstructionCount = #self.luaState.instructions
+    local generatedInstructions = self:getInstructionsFromRange(oldInstructionCount + 1, newInstructionCount)
+    return generatedInstructions
+  end
+end
+
+--////// Main (Public) //////--
+
+-- This is the only method that is intended to be called from outside.
+function InstructionGeneratorMethods:run()
+  self:processCodeBlock(self.ast)
+
+  -- Add a default return instruction,
+  -- by Lua design it's always needed, even if there's already one.
+  -- OP_RETURN [A, B]    return R(A), ... ,R(A+B-2)
+  self:addInstruction("RETURN", 0, 1)
+
+  return self.luaState
+end
+
 --* InstructionGenerator *--
 local InstructionGenerator = {}
 function InstructionGenerator:new(AST, luaState)
   local InstructionGeneratorInstance = {}
   InstructionGeneratorInstance.luaState = luaState or LuaState:new()
-  InstructionGeneratorInstance.AST = AST
+  InstructionGeneratorInstance.ast = AST
   InstructionGeneratorInstance.registers = {}
-  for _, tb in ipairs({ExpressionEvaluator:new(), NodeToInstructionsConverter}) do
-    for index, value in pairs(tb) do
-      InstructionGeneratorInstance[index] = value
+  -- These are the registers that are allocated only for one statement/expression function.
+  -- We store them here, so we can check the code for leaks. 
+  InstructionGeneratorInstance.temporaryRegisters = {}
+  InstructionGeneratorInstance.statements = {}
+  InstructionGeneratorInstance.expressions = {}
+
+  local function inheritModule(moduleName, moduleTable, field)
+    for index, value in pairs(moduleTable) do
+      if InstructionGeneratorInstance[index] then
+        return error("Conflicting names in " .. moduleName .. " and InstructionGeneratorInstance: " .. index)
+      end
+      if field then
+        InstructionGeneratorInstance[field][index] = value
+      else
+        InstructionGeneratorInstance[index] = value
+      end
     end
   end
 
-  function InstructionGeneratorInstance:getFutureAllocatedRegister()
-    for i = 0, 255 do
-      if not self.registers[i] then return i end
-    end
-    --return #self.registers + 1
-  end
-  function InstructionGeneratorInstance:allocateRegister()
-    local registerIndex = self:getFutureAllocatedRegister() -- In case we change the allocation method
-    self.registers[registerIndex] = true
-    -- self.latestAllocatedRegister = registerIndex
-    return registerIndex
-  end;
-  function InstructionGeneratorInstance:deallocateRegister(registerIndex)
-    if not registerIndex then return end
-    -- We don't deallocate constants
-    if registerIndex < 0 then return end
+  -- Main methods
+  inheritModule("InstructionGeneratorMethods", InstructionGeneratorMethods)
 
-    self.registers[registerIndex] = nil
-  end;
-  function InstructionGeneratorInstance:deallocateRegisters(registers)
-    for _, register in ipairs(registers) do
-      self.registers[register] = nil
-    end
-  end
+  -- Node compilers
+  inheritModule("NodeToInstructionsConverter", NodeToInstructionsConverter, "statements")
+  inheritModule("ExpressionToInstructionsConverter", ExpressionToInstructionsConverter, "expressions")
 
-  function InstructionGeneratorInstance:addConstant(newConstant)
-    local constants = self.luaState.constants
-    local constantIndex = find(constants, newConstant)
-    if not constantIndex then
-      insert(constants, newConstant)
-      constantIndex = #constants
-    end
-    return -constantIndex
-  end
-
-  function InstructionGeneratorInstance:addASTNumber(number)
-    return { TYPE = "Number", Value = number }
-  end
-  function InstructionGeneratorInstance:addASTString(str)
-    return { TYPE = "String", Value = str }
-  end
-  function InstructionGeneratorInstance:addASTOperator(value, left, right, operand)
-    return { TYPE = "Operator", Value = value, Left = left, Right = right, Operand = operand }
-  end
-  function InstructionGeneratorInstance:addASTFunctionCall(expression, arguments)
-    return { TYPE = "FunctionCall", Expression = expression, Arguments = arguments}
-  end
-  function InstructionGeneratorInstance:addASTConstant(value)
-    return { TYPE = "Constant", Value = value }
-  end
-
-  function InstructionGeneratorInstance:addInstruction(opName, a, b, c)
-    insert(self.luaState.instructions, { opName, a, b, c })
-    return #self.luaState.instructions
-  end
-  function InstructionGeneratorInstance:addInstructions(instructionTb)
-    local instructions = self.luaState.instructions
-    for _, instruction in ipairs(instructionTb) do
-      insert(instructions, instruction)
-    end
-  end
-  function InstructionGeneratorInstance:changeInstruction(instructionIndex, opName, a, b, c)
-    local oldInstruction = self.luaState.instructions[instructionIndex]
-
-    self.luaState.instructions[instructionIndex] = {
-      (opName == false and oldInstruction[1]) or opName,
-      (a == false and oldInstruction[2]) or a,
-      (b == false and oldInstruction[3]) or b,
-      (c == false and oldInstruction[4]) or c
-    }
-  end
-
-  function InstructionGeneratorInstance:processNode(node)
-    local type = node.TYPE
-    if self["__CodeBlock_" .. type] then
-      return self["__CodeBlock_" .. type](self, node)
-    else
-      return error("Unsupported node type: " .. type)
-    end
-  end;
-  function InstructionGeneratorInstance:processCodeBlock(codeBlockNode)
-    local oldScopeState = self.currentScopeState
-    self.currentScopeState = ScopeState:new(self.luaState, self, self.currentScopeState)
-    for _, node in ipairs(codeBlockNode) do
-      self:processNode(node)
-    end
-    self.currentScopeState = oldScopeState
-
-    return self.luaState
-  end
-  function InstructionGeneratorInstance:run()
-    self:processCodeBlock(self.AST)
-    self:addInstruction("RETURN", 0, 1)
-
-    return self.luaState
-  end
+  -- ScopeManager
+  inheritModule("ScopeManager", ScopeManager:new())
 
   return InstructionGeneratorInstance
 end

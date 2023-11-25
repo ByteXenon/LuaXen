@@ -1,16 +1,49 @@
 --[[
   Name: StatementParser.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-10-XX
+  Date: 2023-11-XX
 --]]
 
 --* Dependencies *--
 local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Interpreter/LuaInterpreter/Parser/StatementParser")
 local Helpers = ModuleManager:loadModule("Helpers/Helpers")
 
+local NodeFactory = ModuleManager:loadModule("Interpreter/LuaInterpreter/Parser/NodeFactory")
+
 --* Export library functions *--
 local insert = table.insert
 local find = table.find or Helpers.TableFind
+
+--* NodeFactory function assignments *--
+local createGroup                   = NodeFactory.createGroup
+local createOperatorNode            = NodeFactory.createOperatorNode
+local createUnaryOperatorNode       = NodeFactory.createUnaryOperatorNode
+local createExpressionNode          = NodeFactory.createExpressionNode
+local createFunctionCallNode        = NodeFactory.createFunctionCallNode
+local createMethodCallNode          = NodeFactory.createMethodCallNode
+local createIdentifierNode          = NodeFactory.createIdentifierNode
+local createNumberNode              = NodeFactory.createNumberNode
+local createIndexNode               = NodeFactory.createIndexNode
+local createMethodIndexNode         = NodeFactory.createMethodIndexNode
+local createTableNode               = NodeFactory.createTableNode
+local createTableElementNode        = NodeFactory.createTableElementNode
+local createFunctionNode            = NodeFactory.createFunctionNode
+local createFunctionDeclarationNode = NodeFactory.createFunctionDeclarationNode
+local createMethodDeclarationNode   = NodeFactory.createMethodDeclarationNode
+local createVariableAssignmentNode  = NodeFactory.createVariableAssignmentNode
+local createLocalFunctionNode       = NodeFactory.createLocalFunctionNode
+local createLocalVariableNode       = NodeFactory.createLocalVariableNode
+local createIfStatementNode         = NodeFactory.createIfStatementNode
+local createElseIfStatementNode     = NodeFactory.createElseIfStatementNode
+local createElseStatementNode       = NodeFactory.createElseStatementNode
+local createUntilLoopNode           = NodeFactory.createUntilLoopNode
+local createDoBlockNode             = NodeFactory.createDoBlockNode
+local createWhileLoopNode           = NodeFactory.createWhileLoopNode
+local createReturnStatementNode     = NodeFactory.createReturnStatementNode
+local createContinueStatementNode   = NodeFactory.createContinueStatementNode
+local createBreakStatementNode      = NodeFactory.createBreakStatementNode
+local createGenericForNode          = NodeFactory.createGenericForNode
+local createNumericForNode          = NodeFactory.createNumericForNode
 
 --* Statements *--
 local Statements = {}
@@ -25,7 +58,7 @@ function Statements:__VariableAssignment(variables)
 
   self:expectCurrentTokenAndConsume("Character", "=")
 
-  return self:createVariableAssignmentNode(self:consumeMultipleExpressions(), variables)
+  return createVariableAssignmentNode(self:consumeMultipleExpressions(), variables)
 end
 -- "[<identifier>, <vararg>]? [, <identifier>, <vararg>]*"
 function Statements:__FunctionParameters()
@@ -35,7 +68,7 @@ function Statements:__FunctionParameters()
     local tokenType = currentToken.TYPE
     if tokenType == "Identifier" then
       insert(parameters, currentToken.Value)
-    elseif tokenType == "Constant" and currentToken.Value == "..." then
+    elseif tokenType == "Identifier" and currentToken.Value == "..." then
       insert(parameters, "...")
       -- There's no params after vararg.
       self:expectNextToken("Character", ")")
@@ -66,7 +99,7 @@ function Statements:consumeFunction()
   local codeBlock = self:consumeCodeBlock({ "end" })
   self:expectCurrentToken("Keyword", "end")
   -- self:consume()
-  return self:createFunctionNode(parameters, codeBlock)
+  return createFunctionNode(parameters, codeBlock)
 end
 -- <table>.<index>
 function Statements:consumeTableIndex(currentExpression)
@@ -77,27 +110,35 @@ function Statements:consumeTableIndex(currentExpression)
     indexToken.TYPE = "String"
   end
 
-  return self:createIndexNode(indexToken, currentExpression)
+  return createIndexNode(indexToken, currentExpression)
 end
 -- <table>[<expression>]
 function Statements:consumeBracketTableIndex(currentExpression)
   self:consume() -- Consume the "[" symbol
   local expression = self:consumeExpression()
   self:expectNextToken("Character", "]")
-  return self:createIndexNode(expression, currentExpression)
+  return createIndexNode(expression, currentExpression)
 end
--- <function_name>(<args>*)
+-- <function_name>[<expression>]*
 function Statements:consumeFunctionCall(currentExpression)
-  self:consume() -- Consume the "(" symbol
-
   -- Get arguments for the function
-  local arguments = {};
-  if not self:isClosingParenthesis(self.currentToken) then
-    arguments = self:consumeMultipleExpressions()
-    self:consume()
-  end
+  if self.currentToken.TYPE == "Character" and self.currentToken.Value == "(" then
+    self:consume() -- Consume the "(" symbol
+    local arguments = {};
+    if not self:isClosingParenthesis(self.currentToken) then
+      arguments = self:consumeMultipleExpressions()
+      self:consume()
+    end
+    self:expectCurrentToken("Character", ")")
 
-  return self:createFunctionCallNode(currentExpression, arguments)
+    return createFunctionCallNode(currentExpression, arguments)
+  elseif self.currentToken.TYPE == "String" or (self.currentToken.TYPE == "Character" and self.currentToken.Value == "{") then
+    local argument = self:consumeExpression()
+    return createFunctionCallNode(currentExpression, {argument})
+  else
+    -- This is just a checking function, DO NOT ERROR
+    -- error("Unexpected token: " .. Helpers.StringifyTable(self.currentToken))
+  end
 end
 -- <table>:<method_name>(<args>*)
 function Statements:consumeMethodCall(currentExpression)
@@ -106,19 +147,22 @@ function Statements:consumeMethodCall(currentExpression)
   if functionName.TYPE ~= "Identifier" then
     return error("Incorrect function name")
   end
+  functionName.TYPE = "String"
   self:consume() -- Consume the name of the method
 
-  local functionCall = self:consumeFunctionCall(self:createMethodIndexNode(functionName, currentExpression))
-  return self:createMethodCallNode(functionCall.Expression, functionCall.Arguments)
+  local functionCall = self:consumeFunctionCall(createMethodIndexNode(functionName, currentExpression))
+  return createMethodCallNode(functionCall.Expression, functionCall.Arguments)
 end
--- { ( \[<expression>\] = <expression> | <identifier> = <expression> | <expression> ) ( , )? }*
+-- { ( \[<expression>\] = <expression> | <identifier> = <expression> | <expression> ) ( , | ; )? }*
 function Statements:consumeTable()
   self:consume() -- Consume "{"
 
   local elements = {}
   local index = 1
+  -- Consume table elements
   while not self:compareTokenValueAndType(self.currentToken, "Character", "}") do
     local curToken = self.currentToken
+    -- [<expression>] = <expression>
     if self:compareTokenValueAndType(curToken, "Character", "[") then
       self:consume() -- Consume "["
       local key = self:consumeExpression()
@@ -126,21 +170,27 @@ function Statements:consumeTable()
       self:expectNextToken("Character", "=")
       self:consume() -- Consume "="
       local value = self:consumeExpression()
-      insert(elements, self:createTableElementNode(key, value))
+      insert(elements, createTableElementNode(key, value))
+    -- <identifier> = <expression>
     elseif curToken.TYPE == "Identifier" and self:compareTokenValueAndType(self:peek(), "Character", "=") then
-      local key =  curToken
+      local key = curToken
+      -- Convert identifier to string because it's not a variable
+      key.TYPE = "String"
       self:consume() -- Consume key
       self:consume() -- Consume "="
       local value = self:consumeExpression()
-      insert(elements, self:createTableElementNode(key, value))
+      insert(elements, createTableElementNode(key, value))
+    -- <expression>
     else
       local value = self:consumeExpression()
-      insert(elements, self:createTableElementNode(self:createNumberNode(index), value))
+      insert(elements, createTableElementNode(createNumberNode(index), value))
       index = index + 1
     end
 
     self:consume() -- Consume the last token of the expression
-    if self:compareTokenValueAndType(self.currentToken, "Character", ",") then
+    local shouldContinue = self.currentToken.TYPE == "Character" and
+                            (self.currentToken.Value == "," or self.currentToken.Value == ";")
+    if shouldContinue then
       self:consume()
     else
       -- Break the loop, it will error if this is not the true end anyway.
@@ -148,7 +198,7 @@ function Statements:consumeTable()
     end
   end
 
-  return self:createTableNode(elements)
+  return createTableNode(elements)
 end
 function Statements:handleSpecialOperators(token, leftExpr)
   if token.TYPE == "Character" then
@@ -158,10 +208,9 @@ function Statements:handleSpecialOperators(token, leftExpr)
     elseif token.Value == "[" then return self:consumeBracketTableIndex(leftExpr)
     -- <table>:<method_name>(<args>*)
     elseif token.Value == ":" then return self:consumeMethodCall(leftExpr)
-    -- <function_name>(<args>*)
-    elseif token.Value == "(" then return self:consumeFunctionCall(leftExpr)
     end
   end
+  return self:consumeFunctionCall(leftExpr)
 end
 function Statements:handleSpecialOperands(token)
   if token.TYPE == "Character" then
@@ -207,7 +256,7 @@ function Statements:_localFunction()
   local parameters = self:__FunctionParameters()
   self:expectCurrentTokenAndConsume("Character", ")")
   local codeBlock = self:consumeCodeBlock({"end"})
-  return self:createLocalFunctionNode(functionName, parameters, codeBlock)
+  return createLocalFunctionNode(functionName, parameters, codeBlock)
 end
 -- "local <identifier>(, <identifier>)* (= <expression>(, <expression>)*)?" |
 -- "local function <identifier>(<args>) <code_block> end"
@@ -219,13 +268,13 @@ function Statements:_local()
   local variables = self:consumeMultipleIdentifiers(true)
   if not self:compareTokenValueAndType(self.currentToken, "Character", "=") then
     self:consume(-1)
-    return self:createLocalVariableNode(variables)
+    return createLocalVariableNode(variables)
   end
 
   self:expectCurrentTokenAndConsume("Character", "=")
 
   local expressions = self:consumeMultipleExpressions()
-  return self:createLocalVariableNode(variables, expressions)
+  return createLocalVariableNode(variables, expressions)
 end
 -- "if <expression> then <codeblock>( elseif <expression> then <codeblock>)*( else <codeblock>)? end"
 function Statements:_if()
@@ -234,7 +283,7 @@ function Statements:_if()
   local expression = self:consumeExpression()
   self:expectNextTokenAndConsume("Keyword", "then")
   local ifStatementCodeBlock = self:consumeCodeBlock({"end", "else", "elseif"})
-  local newIfStatement = self:createIfStatementNode(expression, ifStatementCodeBlock, {})
+  local newIfStatement = createIfStatementNode(expression, ifStatementCodeBlock, {})
 
   -- Consume multiple "elseif" statements if there's any
   while self:compareTokenValueAndType(self.currentToken, "Keyword", "elseif") do
@@ -242,13 +291,13 @@ function Statements:_if()
     local elseIfCondition = self:consumeExpression()
     self:expectNextTokenAndConsume("Keyword", "then")
     local elseIfCodeBlock = self:consumeCodeBlock({"end", "else", "elseif"})
-    insert(newIfStatement.ElseIfs, self:createElseIfStatementNode(elseIfCondition, elseIfCodeBlock))
+    insert(newIfStatement.ElseIfs, createElseIfStatementNode(elseIfCondition, elseIfCodeBlock))
   end
   -- Consume an optional "else" statement
   if self:compareTokenValueAndType(self.currentToken, "Keyword", "else") then
     self:consume() -- Consume "else"
     local elseCodeBlock = self:consumeCodeBlock({"end"})
-    newIfStatement.Else = self:createElseStatementNode(elseCodeBlock)
+    newIfStatement.Else = createElseStatementNode(elseCodeBlock)
   end
 
   return newIfStatement
@@ -260,14 +309,14 @@ function Statements:_repeat()
   self:expectCurrentTokenAndConsume("Keyword", "until")
   local statement = self:consumeExpression()
 
-  return self:createUntilLoopNode(codeBlock, statement)
+  return createUntilLoopNode(codeBlock, statement)
 end
 -- "do <code_block> end"
 function Statements:_do()
   self:consume() -- Consume "do"
   local codeBlock = self:consumeCodeBlock({"end"})
 
-  return self:createDoBlockNode(codeBlock)
+  return createDoBlockNode(codeBlock)
 end
 -- "while <expression> do <code_block> end"
 function Statements:_while()
@@ -276,22 +325,22 @@ function Statements:_while()
   self:expectNextTokenAndConsume("Keyword", "do")
   local codeBlock = self:consumeCodeBlock({"end"})
 
-  return self:createWhileLoopNode(expression, codeBlock)
+  return createWhileLoopNode(expression, codeBlock)
 end
 -- "return( <expression>(, <expression>)*)?"
 function Statements:_return()
   self:consume() -- Consume "return"
   local expressions = self:consumeMultipleExpressions()
 
-  return self:createReturnStatementNode(expressions)
+  return createReturnStatementNode(expressions)
 end
 -- "break"
 function Statements:_break()
-  return self:createBreakStatementNode()
+  return createBreakStatementNode()
 end
 -- "continue"
 function Statements:_continue()
-  return self:createContinueStatementNode()
+  return createContinueStatementNode()
 end
 -- ":<identifier>(<args>) <code_block> end"
 function Statements:_method(fields)
@@ -305,7 +354,7 @@ function Statements:_method(fields)
   self:expectCurrentTokenAndConsume("Character", ")")
   local codeBlock = self:consumeCodeBlock({"end"})
 
-  return self:createMethodDeclarationNode(parameters, codeBlock, fields)
+  return createMethodDeclarationNode(parameters, codeBlock, fields)
 end
 -- "function <identifier>[. <identifier>]*[: <identifier>]?(<args>) <code_block> end"
 function Statements:_function(isLocal)
@@ -334,7 +383,7 @@ function Statements:_function(isLocal)
   self:expectCurrentTokenAndConsume("Character", ")")
   local codeBlock = self:consumeCodeBlock({"end"})
 
-  return self:createFunctionDeclarationNode(parameters, codeBlock, fields)
+  return createFunctionDeclarationNode(parameters, codeBlock, fields)
 end
 -- "in <expression> do <codeblock> end"
 local function consumeGenericLoop(self, iteratorVariables)
@@ -343,7 +392,7 @@ local function consumeGenericLoop(self, iteratorVariables)
   self:expectNextTokenAndConsume("Keyword", "do")
   local codeBlock = self:consumeCodeBlock({"end"})
 
-  return self:createGenericForNode(iteratorVariables, expressions, codeBlock)
+  return createGenericForNode(iteratorVariables, expressions, codeBlock)
 end
 -- "= <expression>, <expression>(, <expression>)? do <codeblock> end"
 local function consumeNumericLoop(self, iteratorVariables)
@@ -352,7 +401,7 @@ local function consumeNumericLoop(self, iteratorVariables)
   self:expectNextTokenAndConsume("Keyword", "do")
   local codeBlock = self:consumeCodeBlock({"end"})
 
-  return self:createNumericForNode(iteratorVariables, expressions, codeBlock)
+  return createNumericForNode(iteratorVariables, expressions, codeBlock)
 end
 -- "for <identifier>(, <identifier>)* in <expression> do <codeblock> end" |
 -- "for <identifier> = <expression>, <expression>(, <expression>)? do <codeblock> end"

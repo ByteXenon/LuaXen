@@ -38,7 +38,7 @@ function InstructionParser:new(state)
   end
 
   function InstructionParserInstance:processCurrentInstruction(instruction)
-    
+
   end
   function InstructionParserInstance:run()
     local ast = {}

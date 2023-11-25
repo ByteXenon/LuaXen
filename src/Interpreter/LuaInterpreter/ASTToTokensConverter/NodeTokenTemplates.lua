@@ -1,7 +1,13 @@
 --[[
   Name: NodeTokenTemplates.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-10-XX
+  Date: 2023-11-XX
+  Description:
+    This module provides a set of functions for converting
+    Abstract Syntax Tree (AST) nodes back into Lua tokens.
+    Each function corresponds to a specific type of
+    AST node (like Identifier, Number, String, Operator, etc.)
+    and appends the tokens that represent the node to a list.
 --]]
 
 --* Dependencies *--
@@ -11,15 +17,76 @@ local Helpers = ModuleManager:loadModule("Helpers/Helpers")
 --* Export library functions *--
 local insert = table.insert
 
+-- Helper function to insert tokens from a list
 local function insertTokensFromList(list, tokens)
   for index, token in ipairs(tokens) do
     insert(list, token)
   end
   return list
 end
+-- Helper function to insert tokens with optional commas
+local function insertTokensWithCommas(tokens, list, tokenizer)
+  for index, item in ipairs(list) do
+    insertTokensFromList(tokens, tokenizer(item))
+    if index ~= #list then insert(tokens, self:newCharacter(",")) end
+  end
+end
+-- Helper function to insert parentheses around expressions for function calls
+local function insertParentheses(tokens, condition, tokenizer, item)
+  if condition then
+    insert(tokens, self:newCharacter("("))
+  end
+  insertTokensFromList(tokens, tokenizer(item))
+  if condition then
+    insert(tokens, self:newCharacter(")"))
+  end
+end
+-- Helper function to insert tokens for function parameters
+local function insertFunctionParameters(tokens, parameters)
+  for index, param in ipairs(parameters) do
+    if param == "..." then insert(tokens, self:newConstant("..."))
+    else                   insert(tokens, self:newIdentifier(param))
+    end
+    if index ~= #parameters then
+      insert(tokens, self:newCharacter(","))
+    end
+  end
+end
 
 --* NodeTokenTemplates *--
-local NodeTokenTemplates = {}
+local NodeTokenTemplates = {
+  Identifier = "<Identifier:Value>",
+  Number     = "<Number:Value>",
+  String     = "<String:String>",
+  Constant   = "<Constant:Value>",
+  
+  Operator      = "<Left><Operator:Value><Right>",
+  UnaryOperator = "<Operator:Value><Operand>",
+
+  LocalVariable      = "<Keyword:local><Variables><Character:=><Expressions>",
+  VariableAssignment = "<Variables><Character:=><Expressions>",
+
+  IfStatement = "<Keyword:if><Condition><Keyword:then><CodeBlock><ElseIfs><Else><Keyword:end>",
+  LocalFunction = "<Keyword:local><Keyword:function><Identifier:Name><Character:(><Parameters><Character:)><CodeBlock><Keyword:end>",
+  FunctionDeclaration = "<Keyword:function><Fields><Character:(><Parameters><Character:)><CodeBlock><Keyword:end>",
+  MethodDeclaration = "<Keyword:function><Fields><Character:(><Parameters><Character:)><CodeBlock><Keyword:end>",
+  Function = "<Keyword:function><Character:(><Parameters><Character:)><CodeBlock><Keyword:end>",
+  FunctionCall = "<Expression><Character:(><Arguments><Character:)>",
+  MethodCall = "<Expression><Character:(><Arguments><Character:)>",
+  WhileLoop = "<Keyword:while><Expression><Keyword:do><CodeBlock><Keyword:end>",
+  GenericFor = "<Keyword:for><IteratorVariables><Keyword:in><Expression><Keyword:do><CodeBlock><Keyword:end>",
+  NumericFor = "<Keyword:for><IteratorVariables><Character:=><Expressions><Keyword:do><CodeBlock><Keyword:end>",
+  Table = "<Character:{><Elements><Character:}>",
+  ReturnStatement = "<Keyword:return><Expressions>",
+  DoBlock = "<Keyword:do><CodeBlock><Keyword:end>",
+  
+  Index = "<Expression><Character:[><Index><Character:]>",
+  MethodIndex = "<Expression><Character:.><Index>",
+  
+  BreakStatement = "<Keyword:break>",
+}
+
+
 function NodeTokenTemplates:Identifier(tokens, node)
   insert(tokens, self:newIdentifier(node.Value))
 end

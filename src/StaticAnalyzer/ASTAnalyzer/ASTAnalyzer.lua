@@ -16,7 +16,7 @@ local insert = table.insert
 local ASTAnalyzer = {}
 function ASTAnalyzer:new(astHierarchy)
   local ASTAnalyzerInstance = {}
-  
+
   function ASTAnalyzerInstance:getLocalNames(scope)
     local currentScope = (scope or astHierarchy)
     local localNames = {}
@@ -37,7 +37,7 @@ function ASTAnalyzer:new(astHierarchy)
     local currentScope = (scope or astHierarchy)
     local scopeLocals = self:getLocalNames(scope)
     local foundLocal = find(scopeLocals, localName)
-    
+
     return foundLocal ~= nil
   end
 

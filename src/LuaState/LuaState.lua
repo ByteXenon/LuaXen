@@ -12,7 +12,7 @@ local Helpers = ModuleManager:loadModule("Helpers/Helpers")
 local insert = table.insert
 local PrintTable = Helpers.PrintTable
 
-local defaultEnvironment = getfenv()
+local defaultEnvironment = (_ENV or getfenv())
 
 -- * LuaState * --
 local LuaState = {}

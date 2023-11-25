@@ -1,16 +1,12 @@
 --[[
   Name: Parser.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-10-XX
+  Date: 2023-11-XX
 --]]
 
 --* Dependencies *--
 local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Interpreter/LuaInterpreter/MathParser/Parser/Parser")
-
 local Helpers = ModuleManager:loadModule("Helpers/Helpers")
-
---* Export library functions *--
-local Class = Helpers.NewClass
 
 --* Parser *--
 local Parser = {}

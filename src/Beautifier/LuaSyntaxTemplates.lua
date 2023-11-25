@@ -49,7 +49,7 @@ local stringTemplates = {
   -- FunctionCall = "{codeBlockIndentation}{expression}({parameters})"
 }
 
-functionTemplates = {
+local functionTemplates = {
   FunctionCall = function(self, node, isInCodeBlock, formatTable)
     local standardTemplate = "{codeBlockIndentation}{expression}({arguments})"
     local templateWithParentheses = "{codeBlockIndentation}({expression})({arguments})"

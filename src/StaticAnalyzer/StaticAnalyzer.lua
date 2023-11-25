@@ -17,7 +17,7 @@ local StaticAnalyzer = {}
 function StaticAnalyzer:new()
   local StaticAnalyzerInstance = {}
 
-  
+  function 
 
   return StaticAnalyzerInstance
 end

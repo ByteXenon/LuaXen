@@ -1,7 +1,7 @@
 --[[
   Name: LuaMathParser.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-10-XX
+  Date: 2023-11-XX
 --]]
 
 --* Dependencies *--
@@ -10,10 +10,16 @@ local Helpers = ModuleManager:loadModule("Helpers/Helpers")
 
 local MathParser = ModuleManager:loadModule("Interpreter/LuaInterpreter/MathParser/Parser/Parser")
 local Debugger = ModuleManager:loadModule("Debugger/Debugger")
+local NodeFactory = ModuleManager:loadModule("Interpreter/LuaInterpreter/Parser/NodeFactory")
 
 --* Export library functions *--
 local stringifyTable = Helpers.StringifyTable
 local find = table.find or Helpers.TableFind
+
+--* NodeFactory function assignments *--
+local createOperatorNode      = NodeFactory.createOperatorNode
+local createUnaryOperatorNode = NodeFactory.createUnaryOperatorNode
+local createExpressionNode    = NodeFactory.createExpressionNode
 
 --* LuaMathParser *--
 local LuaMathParser = {}
@@ -72,7 +78,7 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
     self:consumeToken()
     local right = self:parseBinaryOperator(nextPrecedence)
     if not right then return end
-    return luaParser:createOperatorNode(token.Value, left, right, precedence)
+    return createOperatorNode(token.Value, left, right, precedence)
   end
 
   function PatchedMathParser:handleSpecialOperators(token, leftExpr)
@@ -139,7 +145,7 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
       if self.operatorPrecedences.unary[value] then
         self:consumeToken()
         local operand = self:parseUnaryOperator()
-        return luaParser:createUnaryOperatorNode(token.Value, operand, precedence)
+        return createUnaryOperatorNode(token.Value, operand, precedence)
       end
     elseif TYPE == "Character" and (value == "(" or value == ")") then
       if value == "(" then
@@ -188,7 +194,7 @@ function LuaMathParser:getExpression(luaParser, tokens, startIndex, errorOnFail)
     luaParser.currentToken = luaParser.tokens[luaParser.currentTokenIndex]
 
     if expression then
-      return luaParser:createExpressionNode(expression)
+      return createExpressionNode(expression)
     end
     return expression
   end;

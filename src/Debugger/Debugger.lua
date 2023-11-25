@@ -13,6 +13,7 @@ local createTableDecorator = Helpers.CreateTableDecorator
 local insert = table.insert
 local concat = table.concat
 local find = table.find or Helpers.TableFind
+local unpack = (unpack or table.unpack)
 
 --* Debugger *--
 local Debugger = {}
