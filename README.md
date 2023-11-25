@@ -9,6 +9,7 @@ The project is built from scratch without any third-party libraries. All modules
 - **[Roadmap](#roadmap)**
 - **[Getting Started](#getting-started)**
 - **[Changelog](#changelog)**
+- - **[Beta 1.10](#beta-110---the-calm-before-the-storm) - "*The calm before the storm*"**
 - - **[Beta 1.09](#beta-109---re-animation-of-the-dead-code) - "*RE-ANIMATION OF THE DEAD (code)!*"**
 - - **[Beta 1.08](#beta-108---the-humble-beginnings) - "*\~\~\~The humble beginnings\~\~\~*"**
 - **[FAQ](#faq)**
