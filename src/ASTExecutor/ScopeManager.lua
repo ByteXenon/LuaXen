@@ -72,7 +72,6 @@ end
 
 function ScopeManagerMethods:changeVariable(variableName, newValue, luaState)
   local currentScope = self.currentScope
-  print(variableName)
 
   -- We need to check if the variable is in the current scope
   -- if not, we need to check the parent scope and so on

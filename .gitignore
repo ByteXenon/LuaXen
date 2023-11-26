@@ -7,6 +7,8 @@
 *.tmp
 *_logs*
 /src/*test*.lua
+/src/*example*
+/src/a
 
 # Super private (I store my thesis there)
 *Private*

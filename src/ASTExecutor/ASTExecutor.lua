@@ -209,16 +209,19 @@ function ASTExecutorMethods:execute(...)
   -- }
 
   -- [Body] {
-  local success, errorMsg = pcall(self.executeCodeBlock, self, self.ast, self.state)
+  self:executeCodeBlock(self.ast, self.state)
+  --local success, errorMsg = pcall(self.executeCodeBlock, self, self.ast, self.state)
   -- }
 
   -- [Epilogue] {
   local returnValues = self.returnValues
   local lastExecutedNode = self.lastExecutedNode
 
+  self:popScope()
   -- Clear "self" variables to avoid leaks in case it gets reused again.
   self:resetExecutionState()
 
+  --[[
   -- Check if the script errored
   if not success then
     -- If the script errored, print the error and return
@@ -226,6 +229,7 @@ function ASTExecutorMethods:execute(...)
     print("Last executed node: " .. stringifyTable(lastExecutedNode or {}))
     return error("Internal ASTExecutor error")
   end
+  --]]
 
   return returnValues and unpack(returnValues)
   -- }

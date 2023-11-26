@@ -1,49 +1,44 @@
+local Helpers = require("Helpers/Helpers")
+
 -- Import the required API
 local luaAPI = require("api")
 
--- Assembler
-do
-  -- Parse the assembly code into a Lua state
-  local luaState = luaAPI.Assembler.Parse([[
-    PRINT_FUNC: "print"
-    PRINT_MSG: "Hello, world!"
-
-    ; Define a function that prints a message
-    _my_func: {
-      GETGLOBAL 0, PRINT_FUNC
-      LOADK 1, PRINT_MSG
-      CALL 0, 2, 1
+local fakeModuleManager = {
+  newFile = function()
+    return {
+      loadModule = function(self, path)
+        return _G.require(path)
+      end
     }
-
-    ; Create a closure for the function and call it
-    CLOSURE 0, _my_func
-    CALL 0, 1, 1
-  ]])
-
-  -- Execute the Lua state
-  luaAPI.VirtualMachine.ExecuteState(luaState)
-end
-
--- Interpreter
-do
-  -- Convert the Lua code into instructions and create a Lua state
-  local luaScriptState = luaAPI.Interpreter.ConvertToInstructions([[
-    print("Hello, world!")
-  ]])
-
-  -- Execute the Lua state
-  luaAPI.VirtualMachine.ExecuteState(luaScriptState)
-end
+  end
+}
 
 -- ASTExecutor
 do
-  -- Convert the Lua code into an Abstract Syntax Tree (AST)
-  local AST = luaAPI.Interpreter.ConvertToAST([[
-    local function _my_func(arg1)
-      print("Test argument #1: " .. tostring(arg1))
+
+  local loadedModules = {}
+  local normalRequire = require
+  local fakeRequire = function(path)
+    local fullPath = path .. ".lua"
+    if fullPath == "ModuleManager/ModuleManager.lua" then
+      return fakeModuleManager
     end
-    _my_func("'hello!'")
-  ]])
+    if loadedModules[fullPath] then
+      return loadedModules[fullPath]
+    end
+    -- print("Loading module: " .. fullPath)
+    local returnVal = luaAPI.ASTExecutor.ExecuteScript(Helpers.ReadFile(fullPath), nil, nil, fullPath)
+    loadedModules[fullPath] = returnVal
+    return returnVal
+  end
+
+  _G.getfenv = function()
+    return _G
+  end
+  _G.require = fakeRequire
+
+  -- Convert the Lua code into an Abstract Syntax Tree (AST)
+  local AST = luaAPI.Interpreter.ConvertToAST(Helpers.ReadFile("lua.lua"))
 
   -- Execute the AST directly without using the Virtual Machine
   luaAPI.ASTExecutor.Execute(AST)

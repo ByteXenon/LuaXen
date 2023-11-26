@@ -395,7 +395,6 @@ function ASTNodesFunctionality:MethodCall(node, state)
   
   -- And finally check method type
   if methodType ~= "function" and methodType ~= "table" and methodType ~= "userdata" then
-    Helpers.PrintTable(node)
     return error("attempt to call a " .. methodType .. " value")
   end
 
