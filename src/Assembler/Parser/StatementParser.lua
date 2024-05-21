@@ -1,7 +1,7 @@
 --[[
   Name: StatementParser.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-11-XX
+  Date: 2024-05-10
   Description:
     This module is a part of a pseudo-assembly language parser,
     specifically responsible for parsing individual assembly statements.
@@ -11,13 +11,9 @@
 --]]
 
 --* Dependencies *--
-local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Assembler/Parser/StatementParser")
+local Helpers = require("Helpers/Helpers")
 
-local Helpers = ModuleManager:loadModule("Helpers/Helpers")
--- Don't load the Parser module here, as it would cause a circular dependency
-local Parser = nil and ModuleManager:loadModule("Assembler/Parser/Parser")
-
---* Export library functions *--
+--* Imports *--
 local insert = table.insert
 local concat = table.concat
 local unpack = (unpack or table.unpack)
@@ -67,27 +63,10 @@ function StatementParser:label(labelName)
 end
 
 function StatementParser:labelFunction(labelName)
-  local Parser = ModuleManager:loadModule("Assembler/Parser/Parser")
-
   self:consume() -- Consume "{"
-  -- Get nodes between curly braces
-  local functionTokens = {}
-  while self.curToken and not self:compareToken(self.curToken, "Character", "}") do
-    insert(functionTokens, self.curToken)
-    self:consume()
-  end
-  self:expectCurToken("Character", "}", true, "Unexpected function end")
-  -- Copy current labels and constants
-  local labelsCopy = copyTable(self.labels)
-  local constantsCopy = copyTable(self.luaState.constants)
-  -- Make a new assembly parser instance
-  local newAssemblyParser = Parser:new(functionTokens)
-  -- Share copied labels and constants with the new assembly parser instance
-  newAssemblyParser.labels = labelsCopy
-  newAssemblyParser.luaState.constants = constantsCopy
-  local proto = newAssemblyParser:parse()
-  insert(self.luaState.protos, proto)
-  self.labels[labelName] = #self.luaState.protos
+  local proto = self:parseFunction()
+  insert(self.proto.protos, proto)
+  self.labels[labelName] = #self.proto.protos
 end
 
 function StatementParser:labelString(labelName)
@@ -133,7 +112,7 @@ function StatementParser:instruction()
   local instructionName = self.curToken.Value
   self:consume() -- Consume instruction name
   local params = self:instructionParams()
-  insert(self.luaState.instructions, {instructionName, unpack(params)})
+  insert(self.proto.instructions, {instructionName, unpack(params)})
 end
 
 return StatementParser

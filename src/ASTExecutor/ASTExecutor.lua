@@ -1,28 +1,28 @@
 --[[
   Name: ASTExecutor.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-11-XX
+  Date: 2024-05-11
   Description:
-    This module executes an Abstract Syntax Tree (AST) of a Lua script. It handles 
-    the execution of individual AST nodes and isolated code blocks, and manages 
-    scopes for variable storage and control flow. It leverages functionality from 
-    the ASTNodesFunctionality and ScopeManager modules. It is used by creating an 
+    This module executes an Abstract Syntax Tree (AST) of a Lua script. It handles
+    the execution of individual AST nodes and isolated code blocks, and manages
+    scopes for variable storage and control flow. It leverages functionality from
+    the ASTNodesFunctionality and ScopeManager modules. It is used by creating an
     instance of the ASTExecutor class and calling its execute method with the AST.
---]]--[[
-  TODO: ASTExecutor doesn't work as good with required scripts. It should be fixed
 --]]
 
 --* Dependencies *--
-local ModuleManager = require("ModuleManager/ModuleManager"):newFile("ASTExecutor/ASTExecutor")
-local Helpers = ModuleManager:loadModule("Helpers/Helpers")
+local Helpers = require("Helpers/Helpers")
+local LuaState = require("Structures/LuaState")
 
-local LuaState = ModuleManager:loadModule("LuaState/LuaState")
-local ASTNodesFunctionality = ModuleManager:loadModule("ASTExecutor/ASTNodesFunctionality")
-local ScopeManager = ModuleManager:loadModule("ASTExecutor/ScopeManager")
-local DebugLibrary = ModuleManager:loadModule("ASTExecutor/DebugLibrary")
+local ASTNodesFunctionality = require("ASTExecutor/ASTNodesFunctionality")
+local ScopeManager = require("ASTExecutor/ScopeManager")
+local ModuleLoader = require("ASTExecutor/ModuleLoader")
 
---* Export library functions *--
-local stringifyTable = Helpers.StringifyTable
+local Lexer  = require("Interpreter/LuaInterpreter/Lexer/Lexer")
+local Parser = require("Interpreter/LuaInterpreter/Parser/Parser")
+
+--* Imports *--
+local stringifyTable = Helpers.stringifyTable
 local insert = table.insert
 local unpack = (unpack or table.unpack)
 
@@ -34,205 +34,281 @@ local function shallowCopyTable(table1)
   end
   return table2
 end
+local function customUnpack(table, numberOfValues)
+  if numberOfValues == 0 then return end
+  local function unpackHelper(startIndex)
+    if startIndex > numberOfValues then return end
+    return table[startIndex], unpackHelper(startIndex + 1, numberOfValues)
+  end
+  return unpackHelper(1)
+end
 
 --* Class methods *--
 local ASTExecutorMethods = {}
 
--- This function is used to reset the variables that are used to store
--- values between function calls. It's necessary to avoid leaks.
+-- This function is used to clear global state values to avoid leaks.
 function ASTExecutorMethods:resetExecutionState()
   self.returnValues = nil
-  self.lastExecutedNode = nil
-  self.globalFlags.returnFlag = false
-  self.globalFlags.continueFlag = false
-  self.globalFlags.breakFlag = false
+  self.returnValuesAmount = nil
+  -- Flags
+  self.flags.returnFlag = false
+  self.flags.continueFlag = false
+  self.flags.breakFlag = false
 end
 
-function ASTExecutorMethods:executeNode(node, state)
+function ASTExecutorMethods:executeNode(node)
   local nodeType = node.TYPE
-  local globalFlags = self.globalFlags
-
-  -- We under ANY circumstances DO NOT execute nodes that are not expected to be executed.
-  -- Generally, it's a sign of a bug in the ASTExecutor, so we throw an error, instead of ignoring it.
-  if     globalFlags.returnFlag   then return error("Return flag is set, but it wasn't handled")
-  elseif globalFlags.continueFlag then return error("Continue flag is set, but it wasn't handled")
-  elseif globalFlags.breakFlag    then return error("Break flag is set, but it wasn't handled")
+  local astNodeFunction = self[nodeType]
+  if astNodeFunction then
+    return astNodeFunction(self, node)
   end
 
+  error("Invalid or unsupported node: " .. stringifyTable(node or {}))
+  return
+end
+
+function ASTExecutorMethods:executeExpressionNode(node)
+  local nodeType = node.TYPE
+
   -- Skip expressions, they're just wrappers for other nodes
-  if nodeType == "Expression" then
+  while nodeType == "Expression" do
     node = node.Value
     nodeType = node.TYPE
   end
-  
+
   local astNodeFunction = self[nodeType]
   if astNodeFunction then
-    return astNodeFunction(self, node, state)
+    return astNodeFunction(self, node)
   end
 
-  -- If the node is not a valid/supported AST node, throw an error
-  return error("Invalid or unsupported node: " .. stringifyTable(node or {}))
+  error("Invalid or unsupported node: " .. stringifyTable(node or {}))
+  return
 end
 
 --- Executes a list of AST nodes.
 --- This function shouldn't generally be called directly, as it doesn't handle
 --- scopes and control flow. Use executeCodeBlock instead.
-function ASTExecutorMethods:executeNodes(nodes, state, checkFlags)
-  -- Optimization: If there's only one node, don't create a loop
-  if not nodes[1] then return {} end
-  local globalFlags = self.globalFlags
+function ASTExecutorMethods:executeNodes(nodes)
+  -- Optimization: If there's no nodes, return nil.
+  if not nodes[1] then return end
+  local flags = self.flags
+
+  for index, node in ipairs(nodes) do
+    self:executeNode(node)
+
+    -- Check for control flow flags
+    if flags.returnFlag then
+      return
+    elseif flags.continueFlag then
+      -- Just break the loop, let the loop handlers handle it.
+      break
+    elseif flags.breakFlag then
+      -- Just break the loop, let the loop handlers handle it.
+      break
+    end
+  end
+end
+
+function ASTExecutorMethods:executeExpressionNodes(nodes)
+  -- Optimization: If there's no nodes, return an empty table.
+  if not nodes[1] then return {}, 0 end
 
   local results = {}
+  local resultsIndex = 0
   for index, node in ipairs(nodes) do
     -- Execute the node and store the return values
-    local nodeReturnValues = { self:executeNode(node, state) }
-    for _, returnValue in ipairs(nodeReturnValues) do
-      insert(results, returnValue)
-    end
-
-    -- Check for control flow flags and break if necessary
-    if checkFlags then
-      if globalFlags.returnFlag then
-        return
-      elseif globalFlags.continueFlag then
-        -- Just break the loop, let the loop handlers handle it.
-        break
-      elseif globalFlags.breakFlag then
-        -- Just break the loop, let the loop handlers handle it.
-        break
+    local nodeReturnValues = { self:executeExpressionNode(node) }
+    if #nodeReturnValues == 0 then
+      -- Each node should return at least one value, so we insert nil if it doesn't.
+      resultsIndex = resultsIndex + 1
+      results[resultsIndex] = nil
+    else
+      for _, returnValue in ipairs(nodeReturnValues) do
+        resultsIndex = resultsIndex + 1
+        results[resultsIndex] = returnValue
       end
     end
   end
 
-  return results
+  return results, resultsIndex
 end
 
 --- Creates a Lua function that executes the given code block with the specified parameters.
 -- The created function takes any number of arguments, passes them to the code block,
 -- and returns the return values of the code block.
-function ASTExecutorMethods:makeLuaFunction(parameters, codeBlock, state)
+function ASTExecutorMethods:makeLuaFunction(parameters, isVararg, codeBlock)
   -- Basically, it's a mechanism for perserving upvalues for shared functions
-  -- (functions that are used in multiple places, for example, in a module).
+  -- (functions that are used in multiple places, for example, in a required module).
   -- so we store local scope stack in a variable, so the function can use it
-  -- to access upvalues.
+  -- to access old upvalues that were removed in the current scope.
   local oldScopes = shallowCopyTable(self.scopes)
+  local parameters = parameters
+  local isVararg = isVararg
+  local codeBlock = codeBlock
 
-  local functionScriptName = self.scriptName
-
-  -- This is a function that will be called during function calls.
-  return (function(...)
+  return function(...)
     -- [Prologue] {
     local newScopes = self.scopes
     self.scopes = oldScopes
     self.currentScope = oldScopes[#oldScopes]
-    self:pushScope()
+
+    self:pushScope(true)
 
     local args = {...}
+    local argsLen = select("#", ...)
     local newScope = self.currentScope
-    -- TODO: Check whether or not we should store the environment
-    -- table at the beginning too
-    local functionState = LuaState:new()
-    functionState.env = state.env
     -- }
 
     -- [Body] {
     -- Register the parameters in the current scope
     for index, parameterName in ipairs(parameters) do
-      if parameterName == "..." then
-        -- Make a table of values after "index" and pass it as a vararg
-        local varArg = { select(index, unpack(args)) }
-        self:registerVariable("...", varArg)
-        break
-      end
-
       local paramValue = args[index]
       self:registerVariable(parameterName, paramValue)
     end
+
+    -- Register the vararg variable in the new scope,
+    if isVararg then
+      -- Put all the arguments that weren't assigned to parameters into the vararg
+      local varArg = {}
+      for index = #parameters + 1, argsLen do
+        varArg[index - #parameters] = args[index]
+      end
+      self:registerVariable("...", varArg)
+    elseif argsLen > #parameters then
+      -- Soft error potential.
+      -- Too many arguments were passed to the function,
+      -- let's not make the user's life harder and just ignore them.
+    end
+
     -- Execute the code block
-    self:executeNodes(codeBlock, functionState, true)
+    self:executeNodes(codeBlock)
     -- }
 
     -- [Epilogue] {
-    -- Pop the scope of the function scope stack, not the current one
-    -- this is because we make a shallow copy of the scope stack at the beginning
-    -- for the function to use upvalues (even if they're not present right now,
-    -- for example, when we require a module).
-    self:popScope() -- Remove it for further uses
-
-    -- Return to the old, pre-functioncall scope stack
-    self.currentScope = newScopes[#newScopes]
-    -- self:popScope() : We don't need it, because we switched scope stacks
+    self.currentScope = newScope
+    self:popScope()
     self.scopes = newScopes -- Restore the old scope stack
+    self.currentScope = newScopes[#newScopes]
 
-    local returnValues = self.returnValues
+    local returnValues = self.returnValues or {}
+    local returnValuesAmount = self.returnValuesAmount or 0
     -- Clear returnValues and flow flags to avoid leaks. This is necessary because
     -- they're stored globally and could be overwritten by subsequent function calls.
     self:resetExecutionState()
-    
-    return unpack(returnValues or {})
+
+    return customUnpack(returnValues, returnValuesAmount)
     -- }
-  end)
+  end
 end
 
 -- A function to execute a node list in an isolated environment
-function ASTExecutorMethods:executeCodeBlock(nodeList, state)
+function ASTExecutorMethods:executeCodeBlock(nodeList, isFunctionScope)
   -- [Prologue] {
-  self:pushScope()
-  local newScope = self.currentScope
+  local oldScope = self.currentScope
+  local oldScopes = self.scopes
+
+  self:pushScope(isFunctionScope)
   -- }
 
   -- [Body] {
-  self:executeNodes(nodeList, state, true)
+  self:executeNodes(nodeList)
   -- }
 
   -- [Epilogue] {
   -- If there's a logical error in some code underneath
-  -- ... revert it back despite not having proper scope
+  -- - revert it back despite not having proper scope
   -- pushing/poping logic. It will silently solve some problems.
-  self.currentScoe = newScope
+  self.scopes = oldScopes
   self:popScope()
+  self.currentScope = oldScope
   -- }
+end
+
+--- The function to execute the entire AST.
+function ASTExecutorMethods:executeAST(ast, ...)
+  -- [Prologue] {
+  -- Push the global scope, this one
+  -- is special, because we don't pop it
+  self:pushScope()
+  -- }
+
+  -- [Body] {
+  -- Register the vararg variable in the new scope,
+  -- so it can be accessed by all the functions in the script
+  self:registerVariable("...", {...})
+  self:executeCodeBlock(ast, false)
+  -- }
+
+  -- [Epilogue] {
+  local returnValues = self.returnValues or {}
+  local returnValuesAmount = self.returnValuesAmount or 0
+  self:resetExecutionState()
+
+  return customUnpack(returnValues, returnValuesAmount)
+  -- }
+end
+
+--- Executes an AST in an isolated environment, like it's a new ASTExecutor instance.
+function ASTExecutorMethods:executeIsolatedAST(ast, ...)
+  -- Save the current state
+  local savedAst = self.ast
+  local savedDebug = self.debug
+  local savedScriptName = self.scriptName
+  local savedState = self.state
+  local savedFlags = self.flags
+  local savedReturnValues = self.returnValues
+  local savedReturnValuesAmount = self.returnValuesAmount
+  local savedScopes = self.scopes
+  local savedCurrentScope = self.currentScope
+
+  -- Reset the state and execute the new AST
+  self:resetToInitialState(ast)
+  local returnValues = { self:executeAST(ast, ...) }
+
+  -- Restore the saved state
+  self.ast = savedAst
+  self.debug = savedDebug
+  self.scriptName = savedScriptName
+  self.state = savedState
+  self.flags = savedFlags
+  self.returnValues = savedReturnValues
+  self.returnValuesAmount = savedReturnValuesAmount
+  self.scopes = savedScopes
+  self.currentScope = savedCurrentScope
+
+  return unpack(returnValues or {})
 end
 
 --- The main function of the module. Executes the AST.
 function ASTExecutorMethods:execute(...)
-  -- [Prologue] {
-  if self.debug then
-    -- If debugging is enabled, set the debugging globals
-    self:setDebuggingGlobals(self.state)
+  -- Modify the 'require' function in the global environment
+  self.state.globalEnvironment.require = function(scriptPath)
+    return self:executeFile(scriptPath)
   end
 
-  self:pushScope()
-  -- Register the vararg variable in the current scope,
-  -- so it can be accessed by all the functions in the script
-  self:registerVariable("...", {...})
-  -- }
+  -- Execute the AST
+  return self:executeAST(self.ast)
+end
 
-  -- [Body] {
-  self:executeCodeBlock(self.ast, self.state)
-  --local success, errorMsg = pcall(self.executeCodeBlock, self, self.ast, self.state)
-  -- }
-
-  -- [Epilogue] {
-  local returnValues = self.returnValues
-  local lastExecutedNode = self.lastExecutedNode
-
-  self:popScope()
-  -- Clear "self" variables to avoid leaks in case it gets reused again.
-  self:resetExecutionState()
-
-  --[[
-  -- Check if the script errored
-  if not success then
-    -- If the script errored, print the error and return
-    print("[ASTExecutor] Error executing script: " .. tostring(errorMsg) .. " [in " .. tostring(self.scriptName) .. "]")
-    print("Last executed node: " .. stringifyTable(lastExecutedNode or {}))
-    return error("Internal ASTExecutor error")
-  end
-  --]]
-
-  return returnValues and unpack(returnValues)
-  -- }
+--- Resets the ASTExecutor to its initial state.
+-- @param AST The new AST to execute.
+-- @param state The new LuaState to use.
+-- @param debug Whether to print debug information.
+-- @param scriptName The name of the script being executed.
+function ASTExecutorMethods:resetToInitialState(AST, state, debug, scriptName)
+  self.ast = AST
+  self.debug = debug
+  self.scriptName = scriptName or "unknown"
+  self.state = state or LuaState:new()
+  self.flags = {
+    returnFlag = false,
+    breakFlag = false,
+    continueFlag = false
+  }
+  self.returnValues = nil
+  self.returnValuesAmount = nil
+  self.scopes = {}
+  self.currentScope = { locals = {} }
 end
 
 --* ASTExecutor *--
@@ -244,13 +320,24 @@ function ASTExecutor:new(AST, state, debug, scriptName)
   ASTExecutorInstance.debug = debug
   ASTExecutorInstance.scriptName = scriptName or "unknown"
   ASTExecutorInstance.state = (state or LuaState:new())
+  ASTExecutorInstance.flags = {
+    returnFlag = false,
+    breakFlag = false,
+    continueFlag = false
+  }
   -- Return values are stored globally, because it would
-  -- be pain to store them in individual scopes, because
+  -- be a pain to store them in individual scopes, because
   -- scopes are being created not only for functions, but
   -- for code blocks too (do <codeblock> end)
   ASTExecutorInstance.returnValues = nil
-  -- Store last executed node for debugging purposes
-  ASTExecutorInstance.lastExecutedNode = nil
+  ASTExecutorInstance.returnValuesAmount = nil
+  -- Scope manager stuff
+  ASTExecutorInstance.scopes = {}
+  ASTExecutorInstance.currentScope = { locals = {} }
+  -- ModuleLoader stuff
+  ASTExecutorInstance.loadedScripts = {}
+  ASTExecutorInstance.Lexer = Lexer:new()
+  ASTExecutorInstance.Parser = Parser:new()
 
   local function inheritModule(moduleName, moduleTable)
     for index, value in pairs(moduleTable) do
@@ -266,11 +353,8 @@ function ASTExecutor:new(AST, state, debug, scriptName)
 
   -- Other modules
   inheritModule("ASTNodesFunctionality", ASTNodesFunctionality)
-  inheritModule("ScopeManager", ScopeManager:new())
-
-  if debug then
-    inheritModule("DebugLibrary", DebugLibrary)
-  end
+  inheritModule("ModuleLoader", ModuleLoader)
+  inheritModule("ScopeManager", ScopeManager)
 
   return ASTExecutorInstance
 end

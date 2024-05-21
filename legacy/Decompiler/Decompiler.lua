@@ -8,7 +8,7 @@
 local Helpers = require("Helpers/Helpers")
 local LuaState = require("LuaState/LuaState")
 
---* Export library functions *--
+--* Imports *--
 local Class = Helpers.NewClass
 local StringToTable = Helpers.StringToTable
 local GetLines = Helpers.GetLines

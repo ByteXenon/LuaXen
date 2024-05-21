@@ -5,10 +5,9 @@
 *.out
 *.log
 *.tmp
-*_logs*
+*log*
 /src/*test*.lua
 /src/*example*
-/src/a
 
 # Super private (I store my thesis there)
 *Private*
@@ -17,8 +16,7 @@
 # Too insecure to show it now.
 /docs
 *test*
-src/Obfuscator
-src/Deobfuscator
+/src/Deobfuscator
 
 # Ignore IDE files
 *vscode

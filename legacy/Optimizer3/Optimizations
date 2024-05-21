@@ -1,0 +1,11 @@
+--[[
+  Name: Optimizer.lua
+  Author: ByteXenon [Luna Gilbert]
+  Date: 2024-05-03
+--]]
+
+local InlineOptimization = require("Optimizer/OptimizationsIndex/InlineOptimization")
+
+return {
+  InlineOptimization
+}

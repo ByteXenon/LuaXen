@@ -1,0 +1,25 @@
+; Define some constants with labels
+print: "print"
+message: "Hello, World!"
+
+LOADK 3, message ; Future upvalue
+
+; Make a function that prints a message
+print_message: {
+  .constants: []
+  .lastLineDefined: 1
+  .numUpvalues: 1
+  .upvalues: {
+    "message": 3
+  }
+
+  GETGLOBAL 0, "print"
+  GETUPVAL  1, 0
+  CALL      0, 2, 1
+}
+
+; Call the function
+CLOSURE 0, print_message
+MOVE 0, 3 ; Get skipped in the VM due to the upvalue
+
+CALL 0, 2, 1

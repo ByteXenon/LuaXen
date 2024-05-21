@@ -1,37 +1,32 @@
 --[[
   Name: api.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-11-XX
+  Date: 2024-05-21
   Description:
     A simple API for the entire project.
     This is the only file that should be exposed to the user.
+
+  Read the license file in the root of the project directory.
 --]]
 
 --* Dependencies *--
-local ModuleManager = require("ModuleManager/ModuleManager"):newFile("api")
+local AnsiFormatter = require("AnsiFormatter/AnsiFormatter")
+local Helpers = require("Helpers/Helpers")
+local Assembler = require("Assembler/Assembler")
+local Lexer = require("Interpreter/LuaInterpreter/Lexer/Lexer")
+local Parser = require("Interpreter/LuaInterpreter/Parser/Parser")
+local InstructionGenerator = require("Interpreter/LuaInterpreter/InstructionGenerator/InstructionGenerator")
+local ASTToTokensConverter = require("Interpreter/LuaInterpreter/ASTToTokensConverter/ASTToTokensConverter")
+local VirtualMachine = require("VirtualMachine/VirtualMachine")
+local Beautifier = require("Beautifier/Beautifier")
+local Minifier = require("Minifier/Minifier")
+local Packer = require("Packer/Packer")
+local LuaState = require("Structures/LuaState")
+local ASTExecutor = require("ASTExecutor/ASTExecutor")
+local Printer = require("Printer/Printer")
+local SyntaxHighlighter = require("Interpreter/LuaInterpreter/SyntaxHighlighter/SyntaxHighlighter")
 
-local Formats = ModuleManager:loadModule("Formats/Formats")
-local Helpers = ModuleManager:loadModule("Helpers/Helpers")
-local Assembler = ModuleManager:loadModule("Assembler/Assembler")
-local Lexer = ModuleManager:loadModule("Interpreter/LuaInterpreter/Lexer/Lexer")
-local MathParser = ModuleManager:loadModule("Interpreter/LuaInterpreter/MathParser/MathParser")
-local Parser = ModuleManager:loadModule("Interpreter/LuaInterpreter/Parser/Parser")
-local InstructionGenerator = ModuleManager:loadModule("Interpreter/LuaInterpreter/InstructionGenerator/InstructionGenerator")
-local ASTToTokensConverter = ModuleManager:loadModule("Interpreter/LuaInterpreter/ASTToTokensConverter/ASTToTokensConverter")
-local ASTObfuscator = ModuleManager:loadModule("Obfuscator/ASTObfuscator/ASTObfuscator")
-local VirtualMachine = ModuleManager:loadModule("VirtualMachine/VirtualMachine")
-local Beautifier = ModuleManager:loadModule("Beautifier/Beautifier")
-local Minifier = ModuleManager:loadModule("Minifier/Minifier")
-local LuaState = ModuleManager:loadModule("LuaState/LuaState")
-local ASTExecutor = ModuleManager:loadModule("ASTExecutor/ASTExecutor")
-local ASTAnalyzer = ModuleManager:loadModule("StaticAnalyzer/ASTAnalyzer/ASTAnalyzer")
-local ASTHierarchy = ModuleManager:loadModule("ASTHierarchy/ASTHierarchy")
-local CodePhantom = ModuleManager:loadModule("Obfuscator/CodePhantom/CodePhantom")
-local Printer = ModuleManager:loadModule("Printer/Printer")
-local ASTOptimizer = ModuleManager:loadModule("Optimizer/ASTOptimizer/ASTOptimizer")
-local SyntaxHighlighter = ModuleManager:loadModule("Interpreter/LuaInterpreter/SyntaxHighlighter/SyntaxHighlighter")
-
---* Export standard library functions *--
+--* Imports *--
 local unpack = (unpack or table.unpack)
 
 --* API *--
@@ -40,37 +35,29 @@ local API = {
   Interpreter = {},
   InstructionGenerator = {},
   Assembler = {},
-  MathParser = {},
   ASTExecutor = {},
   Beautifier = {},
   Minifier = {},
   ASTToTokensConverter = {},
+  Printer = {},
+  Packer = {},
   LuaState = {},
-  ASTHierarchy = {},
-  CodePhantom = {}, -- To be moved
-  Optimizer = {
-    ASTOptimizer = {}
-  },
 
   -- Expose modules for easier access in the future
   Modules = {
-    Formats              = Formats,
+    AnsiFormatter        = AnsiFormatter,
     Helpers              = Helpers,
     Assembler            = Assembler,
     Lexer                = Lexer,
-    MathParser           = MathParser,
     Parser               = Parser,
     InstructionGenerator = InstructionGenerator,
     ASTToTokensConverter = ASTToTokensConverter,
-    ASTObfuscator        = ASTObfuscator,
     VirtualMachine       = VirtualMachine,
     Beautifier           = Beautifier,
     Minifier             = Minifier,
+    Packer               = Packer,
     ASTExecutor          = ASTExecutor,
-    ASTAnalyzer          = ASTAnalyzer,
-    ASTHierarchy         = ASTHierarchy,
     Printer              = Printer,
-    ASTOptimizer         = ASTOptimizer,
     SyntaxHighlighter    = SyntaxHighlighter
   }
 }
@@ -178,38 +165,14 @@ function API.Assembler.Parse(code)
   return state
 end
 
---* API.MathParser *--
+--- Executes assembly code
+-- @param <string> code Assembly code.
+-- @return <any> returnValue The return value of the assembly code.
+function API.Assembler.Execute(code)
+  assert(type(code) == "string", "Expected string for argument 'code', but got " .. type(code))
 
---- Tokenizes an expressions and returns its tokens.
--- @param <string> expression An expression.
--- @return <table> tokens The tokens of an expression.
-function API.MathParser.Tokenize(expression)
-  assert(type(expression) == "string", "Expected string for argument 'expression', but got " .. type(expression))
-
-  local tokens = MathParser:tokenize(expression)
-  return tokens
-end
-
---- Tokenizes, and parses an expressions and returns its Abstract Syntax Tree.
--- @param <string> expression An expression.
--- @return <table> AST The Abstract Syntax Tree of an expression.
-function API.MathParser.Parse(expression)
-  assert(type(expression) == "string", "Expected string for argument 'expression', but got " .. type(expression))
-
-  local tokens = API.MathParser.Tokenize(expression)
-  local AST = MathParser:parse(tokens)
-  return AST
-end
-
---- Tokenizes, parses, and evaluates an expressions and returns its result.
--- @param <string> expression An expression.
--- @return <any> result The result of the expression.
-function API.MathParser.Evaluate(expression)
-  assert(type(expression) == "string", "Expected string for argument 'expression', but got " .. type(expression))
-
-  local AST = API.MathParser.Parse(expression)
-  local result = MathParser:evaluate(AST)
-  return result
+  local state = API.Assembler.Parse(code)
+  return API.VirtualMachine.ExecuteState(state)
 end
 
 --* API.ASTExecutor *--
@@ -250,7 +213,17 @@ function API.Beautifier.Beautify(script)
   assert(type(script) == "string", "Expected string for argument 'script', but got " .. type(script))
 
   local AST = API.Interpreter.ConvertToAST(script)
-  local beautifiedScript = Beautifier:new(AST):run()
+  local beautifiedScript = Beautifier:new(AST):beautify()
+  return beautifiedScript
+end
+
+--- Beautify a Lua script from AST.
+-- @param <table> AST The Abstract Syntax Tree of a Lua script.
+-- @return <string> beautifiedScript The beautified version of the given Lua script.
+function API.Beautifier.BeautifyAST(AST)
+  assert(type(AST) == "table", "Expected table for argument 'AST', but got " .. type(AST))
+
+  local beautifiedScript = Beautifier:new(AST):beautify()
   return beautifiedScript
 end
 
@@ -275,8 +248,20 @@ end
 function API.ASTToTokensConverter.ConvertToTokens(AST)
   assert(type(AST) == "table", "Expected table for argument 'AST', but got " .. type(AST))
 
-  local tokens = ASTToTokensConverter:new(AST):run()
+  local tokens = ASTToTokensConverter:new(AST):convert()
   return tokens
+end
+
+--* API.Printer *--
+
+--- Convert the given tokens to code.
+-- @param <table> tokens The tokens of a Lua script.
+-- @return <string> code The code of the given tokens.
+function API.Printer.PrintTokens(tokens)
+  assert(type(tokens) == "table", "Expected table for argument 'tokens', but got " .. type(tokens))
+
+  local code = Printer:new(tokens):run()
+  return code
 end
 
 --* API.LuaState *--
@@ -286,66 +271,6 @@ end
 function API.LuaState.NewLuaState()
   local luaState = LuaState:new()
   return luaState
-end
-
---* API.ASTHierarchy *--
-
---- Convert the given Abstract Syntax Tree to ASTHierarchy object and return it
--- @param <table> AST The Abstract Syntax Tree of a Lua script.
--- @return <table> astHierarchy The ASTHierarchy object of the Abstract Syntax Tree.
-function API.ASTHierarchy.ConvertAST(AST)
-  assert(type(AST) == "table", "Expected table for argument 'AST', but got " .. type(AST))
-
-  local astHierarchy = ASTHierarchy:new(AST):convert()
-  return astHierarchy
-end
-
---* API.CodePhantom *--
-
---- Convert the given luaState to obfuscated script and return it
--- @param <table> luaState The LuaState object.
--- @return <string> obfuscatedScript The obfuscated script.
-function API.CodePhantom.ObfuscateState(luaState)
-  assert(type(luaState) == "table", "Expected table for argument 'luaState', but got " .. type(luaState))
-
-  local obfuscatedScript = CodePhantom:new(luaState):run()
-  return obfuscatedScript
-end
-
---- Convert the given script to obfuscated script and return it
--- @param <string> script The Lua script to obfuscate.
--- @return <string> obfuscatedScript The obfuscated script.
-function API.CodePhantom.ObfuscateScript(script)
-  assert(type(script) == "string", "Expected string for argument 'script', but got " .. type(script))
-
-  local AST = API.Interpreter.ConvertToAST(script)
-  local luaState = API.InstructionGenerator.ConvertToInstructions(AST)
-  local obfuscatedScript = CodePhantom:new(luaState):run()
-  return obfuscatedScript
-end
-
---* API.Optimizer.ASTOptimizer *--
-
---- Convert the given script to an AST, optimize and return it
--- @param <string> script The Lua script to optimize.
--- @return <table> optimizedAST The optimized Abstract Syntax Tree.
-function API.Optimizer.ASTOptimizer.OptimizeScript(script)
-  assert(type(script) == "string", "Expected string for argument 'script', but got " .. type(script))
-
-  local AST = API.Interpreter.ConvertToAST(script)
-  local astHierarchy = API.ASTHierarchy.ConvertAST(AST)
-  local optimizedAST = ASTOptimizer:new(astHierarchy):run()
-  return optimizedAST
-end
-
---- Convert the given ASTHierarchy object to an optimized AST and return it
--- @param <table> astHierarchy The ASTHierarchy object.
--- @return <table> optimizedAST The optimized Abstract Syntax Tree.
-function API.Optimizer.ASTOptimizer.OptimizeASTHierarchy(astHierarchy)
-  assert(type(astHierarchy) == "table", "Expected table for argument 'astHierarchy', but got " .. type(astHierarchy))
-
-  local optimizedAST = ASTOptimizer:new(astHierarchy):run()
-  return optimizedAST
 end
 
 return API

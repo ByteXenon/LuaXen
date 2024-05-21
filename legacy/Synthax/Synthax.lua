@@ -12,7 +12,7 @@ local ASTGenerator = ModuleManager:loadModule("Interpreter/Synthax/ASTGenerator/
 local Tokenizer = ModuleManager:loadModule("Interpreter/Synthax/Tokenizer/Tokenizer")
 local Transpiler = ModuleManager:loadModule("Interpreter/Synthax/Transpiler/Transpiler")
 
---* Export library functions *--
+--* Imports *--
 local Class = Helpers.NewClass
 
 --* Synthax *--

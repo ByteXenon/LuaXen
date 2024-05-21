@@ -8,7 +8,7 @@
 local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Something/Something")
 local Helpers = ModuleManager:loadModule("Helpers/Helpers")
 
---* Export library functions *--
+--* Imports *--
 local Class = Helpers.NewClass
 local GetTableElementsFromTo = Helpers.GetTableElementsFromTo
 local insert = table.insert

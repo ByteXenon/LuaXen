@@ -1,24 +1,37 @@
 --[[
   Name: InstructionGenerator.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-11-XX
+  Date: 2024-05-12
   Description:
     This is the main file of the InstructionGenerator.
-    It will convert the AST to Lua VM instructions.
+    It will convert ASTs to Lua Proto (that contain instructions, constants, etc.)
 --]]
 
+-- NOTE:  The original Lua compiler source has a built-in instruction optimizer, this module doesn't
+--         have one, but we do have an optimizer as a separate module, for Lua proto/instructions/bytecode optimization
+--         Use /src/Optimizer.
+-- NOTE2: Due to some difficulties imitating the original Lua compiler, this module (with or without the optimizer) doesn't produce
+--         The exact same instructions as the original Lua compiler, but they do result in the same behavior when executed.
+--         Additionaly, I just wanted to say, that we tried imitating the original Lua compiler as much as possible, but
+--         it's not perfect, so there might be some differences in the generated instructions, but they are very minor.
+
 --* Dependencies *--
-local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Interpreter/LuaInterpreter/InstructionGenerator/InstructionGenerator")
-local Helpers = ModuleManager:loadModule("Helpers/Helpers")
+local Helpers = require("Helpers/Helpers")
 
-local ScopeManager = ModuleManager:loadModule("Interpreter/LuaInterpreter/InstructionGenerator/ScopeManager")
-local LuaState = ModuleManager:loadModule("LuaState/LuaState")
-local NodeToInstructionsConverter = ModuleManager:loadModule("Interpreter/LuaInterpreter/InstructionGenerator/NodeCompilers/NodeToInstructionsConverter")
-local ExpressionToInstructionsConverter = ModuleManager:loadModule("Interpreter/LuaInterpreter/InstructionGenerator/NodeCompilers/ExpressionToInstructionsConverter")
+--// Compilers //--
+local Instructions = require("Interpreter/LuaInterpreter/InstructionGenerator/Instructions")
+local StatementCompiler = require("Interpreter/LuaInterpreter/InstructionGenerator/NodeCompilers/StatementCompiler")
+local ExpressionCompiler = require("Interpreter/LuaInterpreter/InstructionGenerator/NodeCompilers/ExpressionCompiler")
+-- local Compiler = require("Interpreter/LuaInterpreter/InstructionGenerator/Compiler/Compiler")
 
---* Export library functions *--
-local stringifyTable = Helpers.StringifyTable
-local find = table.find or Helpers.TableFind
+--// Managers //--
+local ScopeManager = require("Interpreter/LuaInterpreter/InstructionGenerator/Managers/ScopeManager")
+local ProtoManager = require("Interpreter/LuaInterpreter/InstructionGenerator/Managers/ProtoManager")
+local ControlFlowManager = require("Interpreter/LuaInterpreter/InstructionGenerator/Managers/ControlFlowManager")
+
+--* Imports *--
+local stringifyTable = Helpers.stringifyTable
+local find = table.find or Helpers.tableFind
 local insert = table.insert
 
 --* InstructionGeneratorMethods *--
@@ -30,20 +43,18 @@ local InstructionGeneratorMethods = {}
 -- We don't use #self.registers, because it's
 -- not guaranteed for registers to be consecutive (which is bad of course)
 function InstructionGeneratorMethods:getNextFreeRegister()
-  -- We start at 0, because registers start at 0.
+  local registers = self.registers
   local curIndex = 0
-  while true do
-    if not self.registers[curIndex] then
-      return curIndex
-    end
+  while registers[curIndex] do
     curIndex = curIndex + 1
   end
+  return curIndex
 end
 
--- Mark a register as temporarily taken
--- it doesn't actually hold a value, just an attempt of static analysis
+-- Mark a register as taken
+-- it doesn't actually hold a value, it's just an attempt of static analysis
 function InstructionGeneratorMethods:allocateRegister()
-  local registerIndex = self:getNextFreeRegister() -- In case we change the allocation method
+  local registerIndex = self:getNextFreeRegister()
   self.registers[registerIndex] = true
   return registerIndex
 end
@@ -52,6 +63,13 @@ end
 -- It allows to pass constant indices as well, but they are ignored
 function InstructionGeneratorMethods:deallocateRegister(registerIndex)
   if not registerIndex then return end
+
+  -- Check if it's a local variable
+  if self:getRegisterVariable(registerIndex) then
+    return
+  end
+
+  -- "Registers" with the index smaller than 0 are constants
   -- We don't deallocate constants
   if registerIndex < 0 then return end
 
@@ -91,7 +109,7 @@ end
 -- Add a constant to the constant table, if it's not already there.
 -- Returns the index of the constant.
 function InstructionGeneratorMethods:findOrAddConstant(constantValue)
-  local constants = self.luaState.constants
+  local constants = self.currentProto.constants
   local constantIndex = find(constants, constantValue)
   if not constantIndex then
     insert(constants, constantValue)
@@ -100,89 +118,109 @@ function InstructionGeneratorMethods:findOrAddConstant(constantValue)
   return -constantIndex
 end
 
---////// Instruction stuff //////--
-
--- Add an instruction to the luaState.instructions table
-function InstructionGeneratorMethods:addInstruction(opName, a, b, c)
-  insert(self.luaState.instructions, { opName, a, b, c })
-  return #self.luaState.instructions
+-- Save the current state
+function InstructionGeneratorMethods:saveState()
+  return {
+    currentProto = self.currentProto,
+    currentControlFlow = self.currentControlFlow,
+    registers = self.registers,
+    temporaryRegisters = self.temporaryRegisters
+  }
 end
 
--- Add a list of instructions to the luaState.instructions table
-function InstructionGeneratorMethods:addInstructions(instructionTable)
-  local instructions = self.luaState.instructions
-  for _, instruction in ipairs(instructionTable) do
-    insert(instructions, instruction)
+-- Restore a previously saved state
+function InstructionGeneratorMethods:restoreState(savedState)
+  self.currentProto = savedState.currentProto
+  self.currentControlFlow = savedState.currentControlFlow
+  self.registers = savedState.registers
+  self.temporaryRegisters = savedState.temporaryRegisters
+end
+
+--////// Closure stuff //////--
+
+-- Generate a proto for a function
+function InstructionGeneratorMethods:compileLuaFunction(node, closureRegister)
+  local codeBlock = node.CodeBlock
+  local parameters = node.Parameters
+  local isVararg = node.IsVararg
+  local closureRegister = closureRegister or self:allocateRegister()
+  local savedState = self:saveState()
+
+  local functionProto = self:pushProto()
+  functionProto.numParmas = #parameters
+  functionProto.isVararg = isVararg
+  functionProto.parameters = parameters
+
+  self.currentProto = functionProto
+  self.currentControlFlow = nil
+  self.registers = {}
+  self.temporaryRegisters = {}
+
+  -- Put parameters into the local scope
+  for index, parameter in ipairs(parameters) do
+    self:registerVariable(parameter, index - 1)
   end
-end
 
--- Change an instruction in the luaState.instructions table
-function InstructionGeneratorMethods:changeInstruction(instructionIndex, opName, a, b, c)
-  local oldInstruction = self.luaState.instructions[instructionIndex]
-  local newInstruction = {opName, a, b, c}
+  self:processCodeBlock(codeBlock)
+  self:restoreState(savedState)
 
-  -- If there's no value, use the old value instead
-  for i = 1, 4 do
-    if not newInstruction[i] then
-      newInstruction[i] = oldInstruction[i]
+  insert(self.currentProto.protos, functionProto)
+
+  -- OP_CLOSURE A Bx    R(A) := closure(KPROTO[Bx])
+  self:addInstruction("CLOSURE", closureRegister, #self.currentProto.protos)
+
+  -- Instructions generated here are being mostly* skipped in the VM
+  -- * only the OP_CLOSURE reads them, and they are not executed.
+  for upvalueName, _ in pairs(functionProto.upvalues) do
+    if self:isLocalVariable(upvalueName) then
+      local upvalueRegister = self:getLocalRegister(upvalueName)
+      self:addInstruction("MOVE", 0, upvalueRegister)
+    else
+      local upvalueRegister = self:findOrCreateUpvalue(upvalueName)
+      self:addInstruction("GETUPVAL", 0, upvalueRegister)
     end
   end
 
-  self.luaState.instructions[instructionIndex] = newInstruction
-end
-
--- Get instructions within a range, it will be used to get instructions that
--- were generated by individual expression/statement functions.
-function InstructionGeneratorMethods:getInstructionsFromRange(startIndex, endIndex)
-  local instructions = self.luaState.instructions
-  local instructionTable = {}
-
-  for index = startIndex, endIndex do
-    insert(instructionTable, instructions[index])
-  end
-  return instructionTable
-end
-
--- Remove instructions within a range and return them, it will be used to remove instructions that
--- were generated by individual expression/statement functions.
-function InstructionGeneratorMethods:removeInstructionsFromRange(startIndex, endIndex)
-  local instructions = self.luaState.instructions
-  local instructionTable = {}
-
-  for index = startIndex, endIndex do
-    insert(instructionTable, instructions[index])
-    instructions[index] = nil
-  end
-  return instructionTable
+  return functionProto, closureRegister
 end
 
 --////// Expression stuff //////--
 
 -- Process an expression node (e.g. Identifier, Number, Operator)
-function InstructionGeneratorMethods:processExpressionNode(node, canReturnConstantIndex, returnGeneratedInstructions)
-  local type = node.TYPE
-  local oldInstructionCount = #self.luaState.instructions
+function InstructionGeneratorMethods:processExpressionNode(node, canReturnConstantIndex, returnGeneratedInstructions, forcedResultRegister)
+  local nodeType = node.TYPE
+  local oldInstructionCount = #self.currentProto.instructions
 
-  -- Sincce "Expression" is just a placeholder node for expressions
+  -- Since "Expression" is just a placeholder node for expressions
   -- we can skip it, so we take the child (Value) node instead.
-  if type == "Expression" then
+  while (nodeType == "Expression") do
     node = node.Value
-    type = node.TYPE
+    nodeType = node.TYPE
   end
 
-  local expressionMethod = self.expressions[type]
+  local expressionMethod = self.expressions[nodeType]
 
   if not expressionMethod then
-    return error("Unsupported expression node type: " .. type)
+    return error("Unsupported expression node type: " .. nodeType)
   end
 
-  local returnRegister = expressionMethod(self, node, canReturnConstantIndex)
+  local returnRegister = expressionMethod(self, node, canReturnConstantIndex, forcedResultRegister)
+
   -- Check for leaks, all node methods must clear
   -- their temporary registers before returning
   self:checkForLeaks()
 
+  if forcedResultRegister and forcedResultRegister ~= returnRegister then
+    -- This shouldn't really happen, instead of using this,
+    -- the mapped node compiling functions should be used.
+    self:addInstruction("MOVE", forcedResultRegister, returnRegister)
+    returnRegister = forcedResultRegister
+
+    -- print("Warning: Forced result register was used, this shouldn't happen!")
+  end
+
   if returnGeneratedInstructions then
-    local newInstructionCount = #self.luaState.instructions
+    local newInstructionCount = #self.currentProto.instructions
     local generatedInstructions = self:getInstructionsFromRange(oldInstructionCount + 1, newInstructionCount)
     return returnRegister, generatedInstructions
   end
@@ -190,16 +228,59 @@ function InstructionGeneratorMethods:processExpressionNode(node, canReturnConsta
   return returnRegister
 end
 
+--////// Condition stuff //////--
+
+-- Process a condition node (e.g. >=, <=, == in if statements/etc)
+-- It always returns instructions
+function InstructionGeneratorMethods:processConditionNode(node, forcedResultRegister)
+  local nodeType = node.TYPE
+  local oldInstructionCount = #self.currentProto.instructions
+
+  -- Since "Expression" is just a placeholder node for expressions
+  -- we can skip it, so we take the child (Value) node instead.
+  while nodeType == "Expression" do
+    node = node.Value
+    nodeType = node.TYPE
+  end
+
+  local expressionMethod = self.expressions[nodeType]
+  if not expressionMethod then
+    return error("Unsupported expression node type: " .. nodeType)
+  end
+
+  local returnRegister = expressionMethod(self, node, false, forcedResultRegister, true)
+  self:deallocateRegister(returnRegister)
+
+  local lastGeneratedInstruction = self.currentProto.instructions[#self.currentProto.instructions]
+  if lastGeneratedInstruction[1] ~= "JMP" then
+    -- Add a mini if statement, if there's none
+    self:addInstruction("TEST", returnRegister, 0)
+    self:addInstruction("JMP", 0, 1)
+  end
+
+  local newInstructionCount = #self.currentProto.instructions
+  local generatedInstructions = self:getInstructionsFromRange(oldInstructionCount + 1, newInstructionCount)
+  return generatedInstructions
+end
+
 --////// Node stuff //////--
 
 -- Process a statement node (e.g. FunctionCall, ReturnStatement, - everything in code blocks)
 function InstructionGeneratorMethods:processStatementNode(node, returnGeneratedInstructions)
-  local type = node.TYPE
-  local oldInstructionCount = #self.luaState.instructions
-  local statementMethod = self.statements[type]
+  local nodeType = node.TYPE
+
+  -- Since "Expression" is just a placeholder node for expressions
+  -- we can skip it, so we take the child (Value) node instead.
+  while nodeType == "Expression" do
+    node = node.Value
+    nodeType = node.TYPE
+  end
+
+  local oldInstructionCount = #self.currentProto.instructions
+  local statementMethod = self.statements[nodeType]
 
   if not statementMethod then
-    return error("Unsupported statement node type: " .. type)
+    return error("Unsupported statement node type: " .. nodeType)
   end
 
   statementMethod(self, node)
@@ -208,7 +289,7 @@ function InstructionGeneratorMethods:processStatementNode(node, returnGeneratedI
   self:checkForLeaks()
 
   if returnGeneratedInstructions then
-    local newInstructionCount = #self.luaState.instructions
+    local newInstructionCount = #self.currentProto.instructions
     local generatedInstructions = self:getInstructionsFromRange(oldInstructionCount + 1, newInstructionCount)
     return generatedInstructions
   end
@@ -216,18 +297,16 @@ end
 
 -- Process a list of statement nodes from a code block
 function InstructionGeneratorMethods:processCodeBlock(nodeList, returnGeneratedInstructions)
-  local oldInstructionCount = #self.luaState.instructions
+  local oldInstructionCount = #self.currentProto.instructions
 
   self:pushScope()
-
   for _, node in ipairs(nodeList) do
     self:processStatementNode(node)
   end
-
   self:popScope()
-  
+
   if returnGeneratedInstructions then
-    local newInstructionCount = #self.luaState.instructions
+    local newInstructionCount = #self.currentProto.instructions
     local generatedInstructions = self:getInstructionsFromRange(oldInstructionCount + 1, newInstructionCount)
     return generatedInstructions
   end
@@ -236,7 +315,10 @@ end
 --////// Main (Public) //////--
 
 -- This is the only method that is intended to be called from outside.
-function InstructionGeneratorMethods:run()
+function InstructionGeneratorMethods:run(proto)
+  local globalProto = self:pushProto(proto)
+
+  -- Process the AST, and generate instructions/constants/etc.
   self:processCodeBlock(self.ast)
 
   -- Add a default return instruction,
@@ -244,21 +326,44 @@ function InstructionGeneratorMethods:run()
   -- OP_RETURN [A, B]    return R(A), ... ,R(A+B-2)
   self:addInstruction("RETURN", 0, 1)
 
-  return self.luaState
+  -- Helpers.writeFile("test2.out", Compiler.compile(globalProto))
+  return globalProto
 end
 
 --* InstructionGenerator *--
 local InstructionGenerator = {}
-function InstructionGenerator:new(AST, luaState)
+function InstructionGenerator:new(AST, proto)
+  if proto then error("Proto support is discontinued") end
+
   local InstructionGeneratorInstance = {}
-  InstructionGeneratorInstance.luaState = luaState or LuaState:new()
   InstructionGeneratorInstance.ast = AST
+
   InstructionGeneratorInstance.registers = {}
+  InstructionGeneratorInstance.locals = {}
+
   -- These are the registers that are allocated only for one statement/expression function.
-  -- We store them here, so we can check the code for leaks. 
+  -- We store them here, so we can check the code for leaks.
   InstructionGeneratorInstance.temporaryRegisters = {}
+  -- This is used to keep track of which registers are taken by variables.
+  InstructionGeneratorInstance.takenRegisters = {}
+
+  InstructionGeneratorInstance.breakJumpStack = {}
+
+  -- Tables for node compilers
   InstructionGeneratorInstance.statements = {}
   InstructionGeneratorInstance.expressions = {}
+
+  -- ScopeManager stuff
+  InstructionGeneratorInstance.scopes = {}
+  InstructionGeneratorInstance.currentScope = { locals = {} }
+
+  -- ProtoManager stuff
+  InstructionGeneratorInstance.protos = {}
+  InstructionGeneratorInstance.currentProto = nil
+  InstructionGeneratorInstance.currentProtoLocals = {}
+
+  -- ControlFlowManager stuff
+  InstructionGeneratorInstance.controlFlows = {}
 
   local function inheritModule(moduleName, moduleTable, field)
     for index, value in pairs(moduleTable) do
@@ -276,12 +381,17 @@ function InstructionGenerator:new(AST, luaState)
   -- Main methods
   inheritModule("InstructionGeneratorMethods", InstructionGeneratorMethods)
 
-  -- Node compilers
-  inheritModule("NodeToInstructionsConverter", NodeToInstructionsConverter, "statements")
-  inheritModule("ExpressionToInstructionsConverter", ExpressionToInstructionsConverter, "expressions")
+  -- Helper instruction methods
+  inheritModule("Instructions", Instructions)
 
-  -- ScopeManager
-  inheritModule("ScopeManager", ScopeManager:new())
+  -- Node compilers
+  inheritModule("StatementCompiler", StatementCompiler, "statements")
+  inheritModule("ExpressionCompiler", ExpressionCompiler, "expressions")
+
+  -- Managers
+  inheritModule("ScopeManager", ScopeManager)
+  inheritModule("ProtoManager", ProtoManager)
+  inheritModule("ControlFlowManager", ControlFlowManager)
 
   return InstructionGeneratorInstance
 end

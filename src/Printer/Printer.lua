@@ -1,84 +1,101 @@
 --[[
   Name: Printer.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-10-XX
+  Date: 2024-05-08
 --]]
 
 --* Dependencies *--
-local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Printer/Printer")
-local Helpers = ModuleManager:loadModule("Helpers/Helpers")
+local Helpers = require("Helpers/Helpers")
 
---* Export library functions *--
-local stringifyTable = Helpers.StringifyTable
-local find = table.find or Helpers.TableFind
+--* Imports *--
+local stringifyTable = Helpers.stringifyTable
+local sanitizeString = Helpers.sanitizeString
+local find = table.find or Helpers.tableFind
 local concat = table.concat
 local insert = table.insert
 local rep = string.rep
 
+--* Constants *--
+local IDENTIFIER_OPERATORS = {"and", "or", "not"}
+
+--* PrinterMethods *--
+local PrinterMethods = {}
+
+function PrinterMethods:isIdentifier(token)
+  local tokenType = token and token.TYPE
+  local tokenValue = token and token.Value
+
+  return  tokenType == "Identifier" or tokenType == "Constant" or
+          tokenType == "Keyword"    or
+        ((tokenType == "Operator"   or tokenType == "UnaryOperator") and find(IDENTIFIER_OPERATORS, tokenValue))
+end
+
+function PrinterMethods:isIdentifierOrNumber(token)
+  return self:isIdentifier(token) or (token and token.TYPE == "Number")
+end
+
+function PrinterMethods:processCurrentToken(tokens, tokenIndex)
+  local token = tokens[tokenIndex]
+  local tokenValue = tostring(token.Value)
+  local tokenType = token.TYPE
+  local metadata = token._metadata
+
+  if self:isIdentifierOrNumber(token) then
+    tokenValue = ((self:isIdentifierOrNumber(tokens[tokenIndex - 1]) and " ") or "") .. tokenValue
+  elseif tokenType == "String" then
+    local stringType = token.StringType or "Simple"
+    if stringType == "Simple" then
+      local stringDelimiter = token.Delimiter or "\""
+      local value = sanitizeString(token.Value, stringDelimiter)
+      tokenValue = stringDelimiter .. value .. stringDelimiter
+    elseif stringType == "Complex" then
+      local stringDelimiter = token.Delimiter
+      local start = "[" .. stringDelimiter .. "["
+      local finish = "]" .. stringDelimiter .. "]"
+      tokenValue = start .. token.Value .. finish
+    end
+  elseif tokenType == "Operator" and tokenValue == "-" and tokens[tokenIndex - 1].Value == "-" then
+    tokenValue = " " .. tokenValue
+  elseif tokenType == "VarArg" then
+    tokenValue = "..."
+  end
+
+  return rep("  ", (metadata and metadata.indentation) or 0) .. tokenValue
+end
+
+function PrinterMethods:processTokens(tokens)
+  local strings = {}
+
+  local tokenIndex = 1
+  while tokens[tokenIndex] do
+    strings[tokenIndex] = self:processCurrentToken(tokens, tokenIndex)
+    tokenIndex = tokenIndex + 1
+  end
+
+  return concat(strings)
+end
+
+function PrinterMethods:run()
+  return self:processTokens(self.tokens)
+end
+
 --* Printer *--
 local Printer = {}
-function Printer:new(astHierarchy)
+function Printer:new(tokens)
   local PrinterInstance = {}
-  PrinterInstance.ast = astHierarchy
+  PrinterInstance.tokens = tokens
 
-  function PrinterInstance:peek(n)
-    return self.tokens[self.currentTokenIndex + (n or 1)]
-  end
-  function PrinterInstance:consume(n)
-    self.currentTokenIndex = self.currentTokenIndex + (n or 1)
-    self.currentToken = self.tokens[self.currentTokenIndex]
-    return self.currentToken
-  end
-
-  function PrinterInstance:isKeywordOrIdentifierOrNumber(token)
-    return self:isIdentifierOrNumber(token) or self:isKeyword(token)
-  end
-
-  function PrinterInstance:isIdentifierOrNumber(token)
-    return self:isIdentifier(token) or (token and token.TYPE == "Number")
-  end
-
-  function PrinterInstance:isIdentifier(token)
-    local tokenType = token and token.TYPE
-    local tokenValue = token and token.Value
-    local identifierOperators = {"and", "or", "not"}
-
-    return tokenType == "Identifier" or (tokenType == "Constant" and tokenValue ~= "...") or
-          ((tokenType == "Operator" or tokenType == "UnaryOperator") and find(identifierOperators, tokenValue))
-  end
-
-  function PrinterInstance:isKeyword(token)
-    return token and token.TYPE == "Keyword"
-  end
-
-  function PrinterInstance:processCurrentToken(tokens, tokenIndex)
-    local token = tokens[tokenIndex]
-    local tokenValue = token.Value
-    local tokenType = token.TYPE
-
-    if self:isKeywordOrIdentifierOrNumber(token) then
-      tokenValue = ((self:isKeywordOrIdentifierOrNumber(tokens[tokenIndex - 1]) and " ") or "") .. tokenValue
-    elseif tokenType == "String" then
-      tokenValue = "'" .. tokenValue .. "'"
+  local function inheritModule(moduleName, moduleTable)
+    for index, value in pairs(moduleTable) do
+      if PrinterInstance[index] then
+        return error("Conflicting names in " .. moduleName .. " and PrinterInstance: " .. index)
+      end
+      PrinterInstance[index] = value
     end
-
-    return tokenValue
   end
-  function PrinterInstance:processTokens(tokens)
-    local strings = {}
 
-    local tokenIndex = 1
-    while tokens[tokenIndex] do
-      insert(strings, self:processCurrentToken(tokens, tokenIndex))
-      tokenIndex = tokenIndex + 1
-    end
-
-    return concat(strings)
-  end
-  function PrinterInstance:run()
-    local tokens = self.ast:getTokens()
-    return self:processTokens(tokens)
-  end
+  -- Main
+  inheritModule("PrinterMethods", PrinterMethods)
 
   return PrinterInstance
 end

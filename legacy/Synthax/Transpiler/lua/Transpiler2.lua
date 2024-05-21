@@ -10,7 +10,7 @@ local Helpers = ModuleManager:loadModule("Helpers/Helpers")
 
 local LibraryTemplate = ModuleManager:loadModule("Interpreter/Synthax/Transpiler/lua/LibraryTemplate")
 
---* Export library functions *--
+--* Imports *--
 local Class = Helpers.NewClass
 local Format = Helpers.StringFormat
 local TableFind = Helpers.TableFind

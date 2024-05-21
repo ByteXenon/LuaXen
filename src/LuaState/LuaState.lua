@@ -1,54 +1,30 @@
 --[[
   Name: LuaState.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-10-XX
+  Date: 2024-05-03
 --]]
 
 --* Dependencies *--
-local ModuleManager = require("ModuleManager/ModuleManager"):newFile("LuaState/LuaState")
-local Helpers = ModuleManager:loadModule("Helpers/Helpers")
+local Helpers = require("Helpers/Helpers")
 
---* Export library functions *--
-local insert = table.insert
-local PrintTable = Helpers.PrintTable
-
-local defaultEnvironment = (_ENV or getfenv())
+--* Constants *--
+-- Lua5.1- vs Lua5.1+ shenanigans
+local defaultEnvironment = (_ENV or (getfenv and getfenv()) or _G)
 
 -- * LuaState * --
 local LuaState = {}
-function LuaState:new(instructions, constants, upvalues, env, register, protos, vararg, parameters, top)
+function LuaState:new()
   local LuaStateObject = {}
 
-  LuaStateObject.instructions = instructions or {}
-  LuaStateObject.constants = constants or {}
-  LuaStateObject.upvalues = upvalues or {}
-  LuaStateObject.env = env or defaultEnvironment
-  LuaStateObject.register = register or {}
-  LuaStateObject.protos = protos or {}
-  LuaStateObject.vararg = vararg or {}
-  LuaStateObject.parameters = parameters or {}
-  LuaStateObject.top = top or 0
-
-  function LuaStateObject:dumpState()
-    local tbToAlign = {}
-    for index, instruction in ipairs(self.instructions) do
-      local newTb = {index}
-      for index2, value in ipairs(instruction) do
-        insert(newTb, " ")
-        insert(newTb, value)
-      end
-      insert(tbToAlign, newTb)
-    end
-    print("Instructions: ")
-    Helpers.PrintAligned(tbToAlign)
-
-    local constantAlignTb = {}
-    for index = 1, #self.constants do
-      insert(constantAlignTb, {index, " ", self.constants[index]})
-    end
-    print("\nConstants: ")
-    Helpers.PrintAligned(constantAlignTb)
-  end
+  LuaStateObject.instructions = {}
+  LuaStateObject.constants = {}
+  LuaStateObject.upvalues = {}
+  LuaStateObject.env = defaultEnvironment
+  LuaStateObject.register = {}
+  LuaStateObject.protos = {}
+  LuaStateObject.vararg = {}
+  LuaStateObject.parameters = {}
+  LuaStateObject.top = 0
 
   return LuaStateObject
 end

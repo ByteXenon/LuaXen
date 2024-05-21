@@ -1,17 +1,18 @@
 --[[
   Name: Forest.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-10-XX
+  Date: 2024-05-11
 --]]
 
 --* Forest color theme *--
 return {
-  Comment    = ">(fg_rgb(34,139,34))<",
-  Number     = ">(fg_rgb(85,107,47))<",
-  Constant   = ">(fg_rgb(128,128,0))<",
-  Operator   = ">(fg_rgb(107,142,35))<",
-  Identifier = ">(fg_rgb(46,139,87))<",
-  Keyword    = ">(fg_rgb(0,100,0))<",
-  String     = ">(fg_rgb(34,139,34))<",
-  Character  = ">(fg_rgb(85,107,47))<"
+  Comment    = "%{RGB_COLOR:34:139:34:}%",
+  Number     = "%{RGB_COLOR:85:107:47:}%",
+  Constant   = "%{RGB_COLOR:128:128:0:}%",
+  VarArg     = "%{RGB_COLOR:128:128:0:}%",
+  Operator   = "%{RGB_COLOR:107:142:35:}%",
+  Identifier = "%{RGB_COLOR:46:139:87:}%",
+  Keyword    = "%{RGB_COLOR:0:100:0:}%",
+  String     = "%{RGB_COLOR:34:139:34:}%",
+  Character  = "%{RGB_COLOR:85:107:47:}%"
 }

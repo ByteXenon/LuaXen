@@ -1,21 +1,30 @@
 --[[
   Name: ASTNodesFunctionality.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-11-XX
+  Date: 2024-05-07
   Description:
-    This internal module provides specific functions for executing different types of AST nodes. 
-    Each function corresponds to a particular type of AST node and contains the logic to execute 
-    that node within the context of a Lua script. This module is exclusively utilized by the 
+    This internal module provides specific functions for executing different types of AST nodes.
+    Each function corresponds to a particular type of AST node and contains the logic to execute
+    that node within the context of a Lua script. This module is exclusively utilized by the
     ASTExecutor module to interpret and execute the AST.
 --]]
 
 --* Dependencies *--
-local ModuleManager = require("ModuleManager/ModuleManager"):newFile("ASTExecutor/ASTNodesFunctionality")
-local Helpers = ModuleManager:loadModule("Helpers/Helpers")
+local Helpers = require("Helpers/Helpers")
 
---* Export library functions *--
+--* Imports *--
 local insert = table.insert
 local unpack = (unpack or table.unpack)
+
+--* Local functions *--
+local function customUnpack(table, numberOfValues)
+  local numberOfValues = numberOfValues or #table
+  local function unpackHelper(startIndex)
+    if startIndex > numberOfValues then return end
+    return table[startIndex], unpackHelper(startIndex + 1, numberOfValues)
+  end
+  return unpackHelper(1)
+end
 
 --* ASTNodesFunctionality *--
 local ASTNodesFunctionality = {}
@@ -23,30 +32,31 @@ local ASTNodesFunctionality = {}
 -----------------// Flow Control \\-----------------
 
 -- ContinueStatement: {}
-function ASTNodesFunctionality:ContinueStatement(node, state)
-  self.globalFlags.continueFlag = true
+function ASTNodesFunctionality:ContinueStatement(node)
+  self.flags.continueFlag = true
 end
 
 -- BreakStatement: {}
-function ASTNodesFunctionality:BreakStatement(node, state)
-  self.globalFlags.breakFlag = true
+function ASTNodesFunctionality:BreakStatement(node)
+  self.flags.breakFlag = true
 end
 
 -- ReturnStatement: { Expressions: {} }
-function ASTNodesFunctionality:ReturnStatement(node, state)
+function ASTNodesFunctionality:ReturnStatement(node)
   local expressions = node.Expressions
 
-  local results = self:executeNodes(expressions, state)
+  local results, returnValuesAmount = self:executeExpressionNodes(expressions)
   self.returnValues = results
-  self.globalFlags.returnFlag = true
+  self.returnValuesAmount = returnValuesAmount
+  self.flags.returnFlag = true
 end
 
 -----------------// Literal and Identifier Nodes \\-----------------
 
 -- Constant: { Value: "" }
-function ASTNodesFunctionality:Constant(node, state)
+function ASTNodesFunctionality:Constant(node)
   local value = node.Value
-  if type(value) == "boolean" then
+  if value == true or value == false then
     return value
   elseif value == "true" or value == "false" then
     return value == "true"
@@ -54,46 +64,86 @@ function ASTNodesFunctionality:Constant(node, state)
   return nil
 end
 
+-- Boolean: { Value: "" }
+function ASTNodesFunctionality:Boolean(node)
+  return node.Value
+end
+
 -- Identifier: { Value: "" }
-function ASTNodesFunctionality:Identifier(node, state)
-  local value = node.Value
-  return self:getVariable(value, state)
+function ASTNodesFunctionality:Identifier(node)
+  -- local value = node.Value
+  -- return self:getVariable(value, state)
+  error("Identifiers are not supported in newer ASTExecutor versions")
 end
 
 -- Number: { Value: "" }
-function ASTNodesFunctionality:Number(node, state)
+function ASTNodesFunctionality:Number(node)
   return tonumber(node.Value)
 end
 
 -- String: { Value: "" }
-function ASTNodesFunctionality:String(node, state)
+function ASTNodesFunctionality:String(node)
   return tostring(node.Value)
 end
 
 -- Table: { Elements: {} }
-function ASTNodesFunctionality:Table(node, state)
+function ASTNodesFunctionality:Table(node)
   local elements = node.Elements
 
   local newTable = {}
+
+  -- TableElement: { Key: {}, Value: {}, ImplicitKey: "" }
   for _, element in ipairs(elements) do
-    local value = self:executeNode(element.Value, state)
-    local index = self:executeNode(element.Key, state)
-    newTable[index] = value
+    local elementKey = element.Key
+    local elementValue = element.Value
+    local implicitKey = element.ImplicitKey
+    if implicitKey then
+      local values = { self:executeExpressionNode(elementValue) }
+      local index = self:executeExpressionNode(elementKey)
+      for _, value in ipairs(values) do
+        newTable[index] = value
+        index = index + 1
+      end
+    else
+      local key = self:executeExpressionNode(elementKey)
+      local value = self:executeExpressionNode(elementValue)
+      newTable[key] = value
+    end
   end
+
   return newTable
+end
+
+-----------------// Variable Access \\-----------------
+
+-- VarArg: {}
+function ASTNodesFunctionality:VarArg(node)
+  return self:getVarArg()
+end
+
+-- Variable: { VariableType: "", Value: "" }
+function ASTNodesFunctionality:Variable(node)
+  local variableType = node.VariableType
+  local value = node.Value
+
+  local variableValue -- For easier debugging, put the value of the variable here
+  if variableType == "Global" then
+    variableValue = self:getGlobalVariable(value)
+  elseif variableType == "Local" then
+    variableValue = self:getLocalVariable(value)
+  elseif variableType == "Upvalue" then
+    variableValue = self:getUpvalue(value)
+  end
+  return variableValue
 end
 
 -----------------// Table Indexing \\-----------------
 
--- TODO: DRY it out
-
--- Index: { Expression: {}, Index: {} }
-function ASTNodesFunctionality:Index(node, state)
-  -- Set the last executed node to this node
-  self.lastExecutedNode = node
-
+-- A one function for both "Index" and "MethodIndex" nodes.
+-- Index|MethodIndex: { Expression: {}, Index: {} }
+local function indexNode(self, node)
   local index = node.Index
-  local expression = self:executeNode(node.Expression, state)
+  local expression = self:executeExpressionNode(node.Expression)
   local expressionType = type(expression)
 
   -- Check expression type before indexing
@@ -101,7 +151,27 @@ function ASTNodesFunctionality:Index(node, state)
     return error("attempt to index variable (a " .. expressionType .. " value)")
   end
 
-  local evaluatedIndex = self:executeNode(index, state)
+  local evaluatedIndex = self:executeExpressionNode(index)
+  if not evaluatedIndex then
+    local indexType = type(evaluatedIndex)
+    return error("attempt to index variable with " .. indexType)
+  end
+
+  return expression[evaluatedIndex]
+end
+
+-- Index: { Expression: {}, Index: {} }
+function ASTNodesFunctionality:Index(node)
+  local index = node.Index
+  local expression = self:executeExpressionNode(node.Expression)
+  local expressionType = type(expression)
+
+  -- Check expression type before indexing
+  if expressionType ~= "table" and expressionType ~= "string" and expressionType ~= "userdata" then
+    return error("attempt to index variable (a " .. expressionType .. " value)")
+  end
+
+  local evaluatedIndex = self:executeExpressionNode(index)
   if not evaluatedIndex then
     local indexType = type(evaluatedIndex)
     return error("attempt to index variable with " .. indexType)
@@ -111,12 +181,9 @@ function ASTNodesFunctionality:Index(node, state)
 end
 
 -- MethodIndex: { Expression: {}, Index: {} }
-function ASTNodesFunctionality:MethodIndex(node, state)
-  -- Set the last executed node to this node
-  self.lastExecutedNode = node
-
+function ASTNodesFunctionality:MethodIndex(node)
   local index = node.Index
-  local expression = self:executeNode(node.Expression, state)
+  local expression = self:executeExpressionNode(node.Expression)
   local expressionType = type(expression)
 
   -- Check expression type before indexing
@@ -124,7 +191,7 @@ function ASTNodesFunctionality:MethodIndex(node, state)
     return error("attempt to index variable (a " .. expressionType .. " value)")
   end
 
-  local evaluatedIndex = self:executeNode(index, state)
+  local evaluatedIndex = self:executeExpressionNode(index)
   if not evaluatedIndex then
     local indexType = type(evaluatedIndex)
     return error("attempt to index variable with " .. indexType)
@@ -136,18 +203,19 @@ end
 -----------------// Operators \\-----------------
 
 -- Operator: { Left: {}, Right: {}, Value: "" }
-function ASTNodesFunctionality:Operator(node, state)
-  -- Set the last executed node to this node
-  self.lastExecutedNode = node
-
+function ASTNodesFunctionality:Operator(node)
   local operator = node.Value
-  local left = self:executeNode(node.Left, state)
-  local right;
+  local left = self:executeExpressionNode(node.Left)
+  local right
   -- For optimization purposes, we only execute the right node if the operator is not "and" or "or"
+  -- The default Lua behavior is the same.
   if operator ~= "and" and operator ~= "or" then
-    right = self:executeNode(node.Right, state)
+    right = self:executeExpressionNode(node.Right)
   end
 
+  -- it's just better to use raw IFs rather than a table
+  -- with mapped functions. /:
+  -- If you wanna optimize it, you know what you have to do.
   if     operator == "+"   then return left +  right
   elseif operator == "-"   then return left -  right
   elseif operator == "*"   then return left *  right
@@ -162,82 +230,72 @@ function ASTNodesFunctionality:Operator(node, state)
   elseif operator == "<="  then return left <= right
   elseif operator == ">="  then return left >= right
   elseif operator == "and" then
-    -- For optimization purposes, we only execute the right node if the left node is true
-    -- Default Lua behavior is the same.
     if not left then return left end
-    return left and self:executeNode(node.Right, state)
+    return left and self:executeExpressionNode(node.Right)
   elseif operator == "or"  then
-    -- For optimization purposes, we only execute the right node if the left node is false
-    -- Default Lua behavior is the same.
     if left then return left end
-    return left or self:executeNode(node.Right, state)
+    return left or self:executeExpressionNode(node.Right)
   else
     return error("Invalid operator: " .. operator)
   end
 end
 
 -- UnaryOperator: { Operand: {}, Value: "" }
-function ASTNodesFunctionality:UnaryOperator(node, state)
-  -- Set the last executed node to this node
-  self.lastExecutedNode = node
-
+function ASTNodesFunctionality:UnaryOperator(node)
   local operator = node.Value
-  local operand = self:executeNode(node.Operand, state)
+  local operand = self:executeExpressionNode(node.Operand)
 
   if     operator == "-"   then return -   operand
   elseif operator == "not" then return not operand
   elseif operator == "#"   then return #   operand
   else
-    return error("Invalid unary operator: " .. operator)
+    return error("Invalid unary operator: " .. tostring(operator))
   end
 end
 
 -----------------// Function Definitions \\-----------------
 
--- Function: { Parameters: {}, CodeBlock: {} }
-function ASTNodesFunctionality:Function(node, state)
-  -- Set the last executed node to this node
-  self.lastExecutedNode = node
-
+-- Function: { Parameters: {}, IsVararg: "", CodeBlock: {} }
+function ASTNodesFunctionality:Function(node)
   local parameters = node.Parameters
+  local isVararg = node.IsVararg
   local codeBlock = node.CodeBlock
 
-  return self:makeLuaFunction(parameters, codeBlock, state)
+  return self:makeLuaFunction(parameters, isVararg, codeBlock)
 end
 
--- LocalFunction: { Name: {}, Parameters: {}, CodeBlock: {} }
-function ASTNodesFunctionality:LocalFunction(node, state)
-  -- Set the last executed node to this node
-  self.lastExecutedNode = node
-
+-- LocalFunction: { Name: {}, Parameters: {}, IsVararg: "", CodeBlock: {} }
+function ASTNodesFunctionality:LocalFunction(node)
   local name = node.Name
   local parameters = node.Parameters
+  local isVararg = node.IsVararg
   local codeBlock = node.CodeBlock
-  local newFunction = self:makeLuaFunction(parameters, codeBlock, state)
+
+  local newFunction = self:makeLuaFunction(parameters, isVararg, codeBlock)
 
   return self:registerVariable(name, newFunction)
 end
 
--- FunctionDeclaration: { Fields: {}, Parameters: {}, CodeBlock: {} }
-function ASTNodesFunctionality:FunctionDeclaration(node, state)
-  -- Set the last executed node to this node
-  self.lastExecutedNode = node
-
+-- FunctionDeclaration: { Fields: {}, Parameters: {}, IsVararg: "", CodeBlock: {}, Expression: {} }
+function ASTNodesFunctionality:FunctionDeclaration(node)
   local fields = node.Fields
   local codeBlock = node.CodeBlock
   local parameters = node.Parameters
-  local newFunction = self:makeLuaFunction(parameters, codeBlock, state)
+  local isVararg = node.IsVararg
+  local expression = node.Expression
+
+  local newFunction = self:makeLuaFunction(parameters, isVararg, codeBlock)
 
   -- If the function is not in a table, just declare it
-  if #fields == 1 then
-    return self:changeVariable(fields[1], newFunction, state)
+  if #fields == 0 then
+    return self:changeVariable(expression, newFunction)
   end
 
   local lastField = fields[#fields]
-  local tableToModify = self:getVariable(fields[1], state)
+  local tableToModify = self:getVariable(expression.Value)
 
   -- Traverse the fields to find the table to modify
-  for index = 2, #fields - 1 do
+  for index = 1, #fields - 1 do
     local fieldName = fields[index]
     local fieldType = type(tableToModify[fieldName])
     if fieldType ~= "table" then
@@ -249,14 +307,14 @@ function ASTNodesFunctionality:FunctionDeclaration(node, state)
   tableToModify[lastField] = newFunction
 end
 
--- MethodDeclaration: { Fields: {}, Parameters: {}, CodeBlock: {} }
-function ASTNodesFunctionality:MethodDeclaration(node, state)
-  -- Set the last executed node to this node
-  self.lastExecutedNode = node
-
+-- MethodDeclaration: { Fields: {}, Parameters: {}, IsVararg: "", CodeBlock: {}, Expression: {} }
+function ASTNodesFunctionality:MethodDeclaration(node)
   local fields = node.Fields
   local codeBlock = node.CodeBlock
   local parameters = node.Parameters
+  local isVararg = node.IsVararg
+  local expression = node.Expression
+
   local newParameters = {"self"}
 
   -- Copy parameters to newParameters, starting from index 2
@@ -264,13 +322,14 @@ function ASTNodesFunctionality:MethodDeclaration(node, state)
     newParameters[index + 1] = value
   end
 
-  local newFunction = self:makeLuaFunction(newParameters, codeBlock, state)
+  -- Make a function: function(self, <parameters>) <codeBlock> end
+  local newFunction = self:makeLuaFunction(newParameters, isVararg, codeBlock)
 
   local lastField = fields[#fields]
-  local tableToModify = self:getVariable(fields[1], state)
+  local tableToModify = self:getVariable(expression.Value)
 
   -- Traverse the fields to find the table to modify
-  for index = 2, #fields - 1 do
+  for index = 1, #fields - 1 do
     local fieldName = fields[index]
     local fieldType = type(tableToModify[fieldName])
     if fieldType ~= "table" then
@@ -284,89 +343,95 @@ end
 
 -----------------// Variable Declaration and Assignment \\-----------------
 
--- LocalVariable: { Variables: {}, Expressions: {} }
-function ASTNodesFunctionality:LocalVariable(node, state)
-  -- Set the last executed node to this node
-  self.lastExecutedNode = node
-
-  local expressionsResults = self:executeNodes(node.Expressions, state)
+-- LocalVariableAssignment: { Variables: {}, Expressions: {} }
+function ASTNodesFunctionality:LocalVariableAssignment(node)
+  local expressionsResults, amountOfValues = self:executeExpressionNodes(node.Expressions)
   local variables = node.Variables
 
-  for index, expressionResult in ipairs(expressionsResults) do
+  for index = 1, amountOfValues do
+    local expressionResult = expressionsResults[index]
     local variable = variables[index]
     -- If there are more expressions results than variables, just break
     if not variable then break end
-    local variableName = variable.Value
+    local variableName = variable
 
     self:registerVariable(variableName, expressionResult)
+  end
+
+  -- Register variables that dont have assigned values yet.
+  for index = amountOfValues + 1, #variables do
+    local variable = variables[index]
+    local variableName = variable
+
+    self:registerVariable(variableName, nil)
   end
 end
 
 -- VariableAssignment: { Variables: {}, Expressions: {} }
-function ASTNodesFunctionality:VariableAssignment(node, state)
-  -- Set the last executed node to this node
-  self.lastExecutedNode = node
-
-  local expressionsResults = self:executeNodes(node.Expressions, state)
+function ASTNodesFunctionality:VariableAssignment(node)
+  local expressionsResults, amountOfValues = self:executeExpressionNodes(node.Expressions)
   local variables = node.Variables
 
-  for index, expressionNode in ipairs(expressionsResults) do
+  for index = 1, amountOfValues do
+    local expressionNode = expressionsResults[index]
     local variableNode = variables[index]
     -- If there are more expressions results than variables, just break
     if not variableNode then break end
 
-    local expressionNodeValue = variableNode.Value
-    if expressionNodeValue.TYPE == "Identifier" then
+    local expressionNodeValue = variableNode
+    if expressionNodeValue.TYPE == "Variable" then
       -- If the variable is an identifier, just change the variable
-      self:changeVariable(expressionNodeValue.Value, expressionNode, state)
-      return
+      self:changeVariable(expressionNodeValue.Value, expressionNode)
     elseif expressionNodeValue.TYPE == "Index" then
-      -- Instead of doing self:executeNode(expressionNodeValue), we do self:executeNode(expressionNodeValue.Expression)
-      -- and self:executeNode(expressionNodeValue.Index) separately to set the table and index variables.
-      local expression = self:executeNode(expressionNodeValue.Expression, state)
-      local index = self:executeNode(expressionNodeValue.Index, state)
+      -- Instead of doing self:executeExpressionNode(expressionNodeValue), we do self:executeExpressionNode(expressionNodeValue.Expression)
+      -- and self:executeExpressionNode(expressionNodeValue.Index) separately to set the table and index variables.
+      local expression = self:executeExpressionNode(expressionNodeValue.Expression)
+      local index = self:executeExpressionNode(expressionNodeValue.Index)
       expression[index] = expressionNode
-      return
     else
       return error("Unexpected expression type: " .. expressionNodeValue.TYPE)
+    end
+  end
+
+  -- Assign nil to variables that don't have assigned values yet.
+  for index = amountOfValues + 1, #variables do
+    local variableNode = variables[index]
+    local variableNodeValue = variableNode.Value
+    if variableNodeValue.TYPE == "Identifier" then
+      -- If the variable is an identifier, just change the variable
+      self:changeVariable(variableNodeValue.Value, nil)
+    elseif variableNodeValue.TYPE == "Index" then
+      -- Instead of doing self:executeExpressionNode(variableNodeValue), we do self:executeExpressionNode(variableNodeValue.Expression)
+      -- and self:executeExpressionNode(variableNodeValue.Index) separately to set the table and index variables.
+      local expression = self:executeExpressionNode(variableNodeValue.Expression)
+      local index = self:executeExpressionNode(variableNodeValue.Index)
+      expression[index] = nil
+    else
+      return error("Unexpected expression type: " .. tostring(variableNodeValue.TYPE))
     end
   end
 end
 
 -----------------// Function calls \\-----------------
 
--- FunctionCall: { Expression: {}, Arguments: {} }
-function ASTNodesFunctionality:FunctionCall(node, state)
-  -- Set the last executed node to this node
-  self.lastExecutedNode = node
-
+-- FunctionCall: { Expression: {}, Arguments: {}, ExpectedReturnValueCount: 0 }
+function ASTNodesFunctionality:FunctionCall(node)
   local expression = node.Expression
   local arguments = node.Arguments
+  local expectedReturnValueCount = node.ExpectedReturnValueCount or 0
 
-  local expressionResult = self:executeNode(expression, state)
+  local expressionResult = self:executeExpressionNode(expression)
   if type(expressionResult) ~= "function" then
-    return error("attempt to call a " .. type(expressionResult) .. " value")
+    error("attempt to call a " .. type(expressionResult) .. " value")
+    return
   end
 
-  local evaluatedArguments = {}
-  for _, argument in ipairs(arguments) do
-    -- Since some nodes can return multiple values (e.g function calls/vararg),
-    -- we need to unpack them
-    local argumentValues = {self:executeNode(argument, state)}
-
-    for _, value in pairs(argumentValues) do
-      insert(evaluatedArguments, value)
-    end
-  end
-
-  return expressionResult(unpack(evaluatedArguments))
+  local evaluatedArguments, evaluatedArgumentAmount = self:executeExpressionNodes(arguments)
+  return expressionResult(customUnpack(evaluatedArguments, evaluatedArgumentAmount))
 end
 
 -- MethodCall: { Expression: {}, Arguments: {} }
-function ASTNodesFunctionality:MethodCall(node, state)
-  -- Set the last executed node to this node
-  self.lastExecutedNode = node
-
+function ASTNodesFunctionality:MethodCall(node)
   local expression = node.Expression
   local arguments = node.Arguments
 
@@ -374,7 +439,7 @@ function ASTNodesFunctionality:MethodCall(node, state)
   -- and the first argument is the table (self) itself. So we just add the table to the arguments list.
   -- So, The expression inside node.Expression always must be "Index" type.
 
-  local parentTable = self:executeNode(expression.Expression, state)
+  local parentTable = self:executeExpressionNode(expression.Expression)
   local parentTableType = type(parentTable)
 
   -- Check parent table type before indexing first
@@ -382,46 +447,35 @@ function ASTNodesFunctionality:MethodCall(node, state)
     return error("attempt to index variable (a " .. parentTableType .. " value)")
   end
 
-  local methodName = self:executeNode(expression.Index, state)
+  local methodName = self:executeExpressionNode(expression.Index)
   local methodNameType = type(methodName)
 
   -- Then check method name type
   if not methodNameType then
     return error("attempt to index variable with " .. methodNameType)
   end
-  
+
   local method = parentTable[methodName]
   local methodType = type(method)
-  
-  -- And finally check method type
   if methodType ~= "function" and methodType ~= "table" and methodType ~= "userdata" then
     return error("attempt to call a " .. methodType .. " value")
   end
 
-  local evaluatedArguments = {}
-  for index, argument in ipairs(arguments) do
-    local argumentValues = {self:executeNode(argument, state)}
-    for _, value in pairs(argumentValues) do
-      insert(evaluatedArguments, value)
-    end
-  end
-  
+  local evaluatedArguments, evaluatedArgumentAmount = self:executeExpressionNodes(arguments)
+
   -- Pass "self" and the rest of the arguments to the method
-  return method(parentTable, unpack(evaluatedArguments))
+  return method(parentTable, customUnpack(evaluatedArguments, evaluatedArgumentAmount))
 end
 
 -----------------// For statements \\-----------------
 
 -- GenericFor: { IteratorVariables: {}, Expressions: {}, CodeBlock: {} }
-function ASTNodesFunctionality:GenericFor(node, state)
-  -- Set the last executed node to this node
-  self.lastExecutedNode = node
-
+function ASTNodesFunctionality:GenericFor(node)
   -- [Prologue] {
   local codeBlock = node.CodeBlock
   local iteratorVariables = node.IteratorVariables
   local expressions = node.Expressions
-  local globalFlags = self.globalFlags
+  local flags = self.flags
 
   self:pushScope()
   -- }
@@ -431,10 +485,10 @@ function ASTNodesFunctionality:GenericFor(node, state)
   -- and set the variables accordingly.
   -- Here's the syntax of the generic for loop:
   -- for <varList> in <iteratorFunction> [[, <iteratorTable>]? [, <iteratorControlVar>]?] do <codeBlock> end
-  local iteratorFunction, iteratorTable, iteratorControlVar = self:executeNode(expressions[1], state)
-  if expressions[2] then iteratorTable = self:executeNode(expressions[2], state)
+  local iteratorFunction, iteratorTable, iteratorControlVar = self:executeExpressionNode(expressions[1])
+  if expressions[2] then iteratorTable = self:executeExpressionNode(expressions[2])
   end
-  if expressions[3] then iteratorControlVar = self:executeNode(expressions[3], state)
+  if expressions[3] then iteratorControlVar = self:executeExpressionNode(expressions[3])
   end
 
   while true do
@@ -445,27 +499,27 @@ function ASTNodesFunctionality:GenericFor(node, state)
       -- It's the natural end of the loop, so we break.
       break
     end
-    -- Set the iterator variables to the values returned by the iterator function.   
+    -- Set the iterator variables to the values returned by the iterator function.
     for index, iteratorVariable in ipairs(iteratorVariables) do
       self:registerVariable(iteratorVariable, iteratorValues[index])
     end
     -- }
 
     -- [Loop body] {
-    self:executeNodes(codeBlock, state, true)
+    self:executeNodes(codeBlock)
     -- }
 
     -- [Loop epilogue] {
-    -- Always reset the continue flag, it gets handled in "executeNodes",
+    -- Always reset the continue flag, it gets handled in "executeCodeBlock",
     -- so we don't need to handle it here
-    globalFlags.continueFlag = false
-    
-    if globalFlags.breakFlag then
+    flags.continueFlag = false
+
+    if flags.breakFlag then
       -- Reset the break flag, so it doesn't affect other loops
-      globalFlags.breakFlag = false
+      flags.breakFlag = false
       break
-    elseif globalFlags.returnFlag then
-      -- Return flags is being handled in "executeNodes", we just need to break,
+    elseif flags.returnFlag then
+      -- Return flags is being handled in "executeCodeBlock", we just need to break,
       -- so it won't make the loop continue.
       break
     end
@@ -479,26 +533,23 @@ function ASTNodesFunctionality:GenericFor(node, state)
 end
 
 -- NumericFor: { IteratorVariables: {}, Expressions: {}, CodeBlock: {} }
-function ASTNodesFunctionality:NumericFor(node, state)
-  -- Set the last executed node to this node
-  self.lastExecutedNode = node
-
+function ASTNodesFunctionality:NumericFor(node)
   -- [Prologue] {
   local codeBlock = node.CodeBlock
   local iteratorVariable = node.IteratorVariables[1]
   local expressions = node.Expressions
 
   self:pushScope()
-  local globalFlags = self.globalFlags
+  local flags = self.flags
   -- }
 
   -- [Body] {
   -- Take required iteratorStart, iteratorEnd and optional iteratorStep values from the expressions
   -- Here's the syntax of the numeric for loop:
   -- for <iteratorControlVar> = <iteratorStart>, <iteratorEnd> [, <iteratorStep>]? do <codeBlock> end
-  local iteratorStart = self:executeNode(expressions[1], state)
-  local iteratorEnd = self:executeNode(expressions[2], state)
-  local iteratorStep = (expressions[3] and self:executeNode(expressions[3], state)) or 1
+  local iteratorStart = self:executeExpressionNode(expressions[1])
+  local iteratorEnd = self:executeExpressionNode(expressions[2])
+  local iteratorStep = (expressions[3] and self:executeExpressionNode(expressions[3])) or 1
 
   for iteratorControlVar = iteratorStart, iteratorEnd, iteratorStep do
     -- [Loop prologue] {
@@ -506,20 +557,20 @@ function ASTNodesFunctionality:NumericFor(node, state)
     -- }
 
     -- [Loop body] {
-    self:executeNodes(codeBlock, state, true)
+    self:executeNodes(codeBlock)
     -- }
 
     -- [Loop epilogue] {
-    -- Always reset the continue flag, it gets handled in "executeNodes",
+    -- Always reset the continue flag, it gets handled in "executeCodeBlock",
     -- so we don't need to handle it here
-    globalFlags.continueFlag = false
-    
-    if globalFlags.breakFlag then
+    flags.continueFlag = false
+
+    if flags.breakFlag then
       -- Reset the break flag, so it doesn't affect other loops
-      globalFlags.breakFlag = false
+      flags.breakFlag = false
       break
-    elseif globalFlags.returnFlag then
-      -- Return flags is being handled in "executeNodes", we just need to break,
+    elseif flags.returnFlag then
+      -- Return flags is being handled in "executeCodeBlock", we just need to break,
       -- so it won't make the loop continue.
       break
     end
@@ -535,28 +586,22 @@ end
 -----------------// General statements \\-----------------
 
 -- DoBlock: { CodeBlock: {} }
-function ASTNodesFunctionality:DoBlock(node, state)
-  -- Set the last executed node to this node
-  self.lastExecutedNode = node
-
+function ASTNodesFunctionality:DoBlock(node)
   local codeBlock = node.CodeBlock
 
-  self:executeCodeBlock(codeBlock, state)
+  self:executeCodeBlock(codeBlock, false)
 end
 
 -- IfStatement: { Condition: {}, CodeBlock: {}, ElseIfs: {}, Else: {} }
-function ASTNodesFunctionality:IfStatement(node, state)
-  -- Set the last executed node to this node
-  self.lastExecutedNode = node
-
+function ASTNodesFunctionality:IfStatement(node)
   local codeBlock = node.CodeBlock
   local condition = node.Condition
   local elseIfs = node.ElseIfs
-  local elseBlock = (node.Else and node.Else.CodeBlock) 
+  local elseBlock = (node.Else and node.Else.CodeBlock)
 
   -- If the main condition is true, execute the code block, and return.
-  if self:executeNode(condition, state) then
-    self:executeCodeBlock(codeBlock, state)
+  if self:executeExpressionNode(condition) then
+    self:executeCodeBlock(codeBlock, false)
     return
   end
 
@@ -565,49 +610,46 @@ function ASTNodesFunctionality:IfStatement(node, state)
     local elseIfCondition = elseIf.Condition
     local elseIfCodeBlock = elseIf.CodeBlock
     -- If the else-if condition is true, execute the code block, and return.
-    if self:executeNode(elseIfCondition, state) then
-      self:executeCodeBlock(elseIfCodeBlock, state)
+    if self:executeExpressionNode(elseIfCondition) then
+      self:executeCodeBlock(elseIfCodeBlock, false)
       return
     end
   end
 
   -- If all previous conditions were false, execute the else block if it exists.
   if elseBlock then
-    self:executeCodeBlock(elseBlock, state)
+    self:executeCodeBlock(elseBlock, false)
     return
   end
 end
 
 -- WhileLoop: { Expression: {}, CodeBlock: {} }
-function ASTNodesFunctionality:WhileLoop(node, state)
-  -- Set the last executed node to this node
-  self.lastExecutedNode = node
-
+function ASTNodesFunctionality:WhileLoop(node)
   -- [Prologue] {
   local codeBlock = node.CodeBlock
   local expression = node.Expression
-  local globalFlags = self.globalFlags
+  local flags = self.flags
 
   self:pushScope()
   -- }
 
   -- [Body] {
-  while self:executeNode(expression, state) do
+  while self:executeExpressionNode(expression) do
     -- [Loop body] {
-    self:executeCodeBlock(codeBlock, state, true)
+    self:executeCodeBlock(codeBlock, false)
     -- }
 
     -- [Loop epilogue] {
-    -- Always reset the continue flag, it gets handled in "executeNodes",
+    -- Always reset the continue flag, it gets handled in "executeCodeBlock",
     -- so we don't need to handle it here
-    globalFlags.continueFlag = false
-    
-    if globalFlags.breakFlag then
+    flags.continueFlag = false
+
+    if flags.breakFlag then
       -- Reset the break flag, so it doesn't affect other loops
-      globalFlags.breakFlag = false
+      flags.breakFlag = false
       break
-    elseif globalFlags.returnFlag then
-      -- Return flags is being handled in "executeNodes", we just need to break,
+    elseif flags.returnFlag then
+      -- Return flags is being handled in "executeCodeBlock", we just need to break,
       -- so it won't make the loop continue.
       break
     end
@@ -621,14 +663,11 @@ function ASTNodesFunctionality:WhileLoop(node, state)
 end
 
 -- UntilLoop: { Statement: {}, CodeBlock: {} }
-function ASTNodesFunctionality:UntilLoop(node, state)
-  -- Set the last executed node to this node
-  self.lastExecutedNode = node
-
+function ASTNodesFunctionality:UntilLoop(node)
   -- [Prologue] {
   local codeBlock = node.CodeBlock
   local statement = node.Statement
-  local globalFlags = self.globalFlags
+  local flags = self.flags
 
   self:pushScope()
   -- }
@@ -636,25 +675,25 @@ function ASTNodesFunctionality:UntilLoop(node, state)
   -- [Body] {
   repeat
     -- [Loop body] {
-    self:executeCodeBlock(codeBlock, state, true)
+    self:executeCodeBlock(codeBlock, false)
     -- }
 
     -- [Loop epilogue] {
-    -- Always reset the continue flag, it gets handled in "executeNodes",
+    -- Always reset the continue flag, it gets handled in "executeCodeBlock",
     -- so we don't need to handle it here
-    globalFlags.continueFlag = false
-    
-    if globalFlags.breakFlag then
+    flags.continueFlag = false
+
+    if flags.breakFlag then
       -- Reset the break flag, so it doesn't affect other loops
-      globalFlags.breakFlag = false
+      flags.breakFlag = false
       break
-    elseif globalFlags.returnFlag then
-      -- Return flags is being handled in "executeNodes", we just need to break,
+    elseif flags.returnFlag then
+      -- Return flags is being handled in "executeCodeBlock", we just need to break,
       -- so it won't make the loop continue.
       break
     end
     -- }
-  until self:executeNode(statement, state)
+  until self:executeExpressionNode(statement)
   -- }
 
   -- [Epilogue] {

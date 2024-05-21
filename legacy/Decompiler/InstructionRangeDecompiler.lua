@@ -10,7 +10,7 @@
 --* Dependencies *--
 local Helpers = require("Helpers/Helpers")
 
---* Export library functions *--
+--* Imports *--
 local Class = Helpers.NewClass
 local StringToTable = Helpers.StringToTable
 local GetLines = Helpers.GetLines

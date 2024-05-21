@@ -10,7 +10,7 @@ local LuaState = require("LuaState/LuaState")
 local OPCodes = require("OPCodes/OPCodes")
 local Assembler = require("Assembler/Assembler")
 
---* Export library functions *--
+--* Imports *--
 local Class = Helpers.NewClass
 local StringToTable = Helpers.StringToTable
 local FormattedError = Helpers.FormattedError

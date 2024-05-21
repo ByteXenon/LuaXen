@@ -11,7 +11,7 @@ local Helpers = ModuleManager:loadModule("Helpers/Helpers")
 --local LuaTranspilerFactory = ModuleManager:loadModule("Interpreter/Synthax/Transpiler/lua/Factory")
 local LuaTranspiler = ModuleManager:loadModule("Interpreter/Synthax/Transpiler/lua/Transpiler2")
 
---* Export library functions *--
+--* Imports *--
 local Class = Helpers.NewClass
 
 --* Transpiler *--

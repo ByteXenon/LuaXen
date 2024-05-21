@@ -10,7 +10,7 @@ local Helpers = ModuleManager:loadModule("Helpers/Helpers")
 
 local ParserBuilder = ModuleManager:loadModule("Interpreter/ParserBuilder/ParserBuilder")
 
---* Export library functions *--
+--* Imports *--
 local StringToTable = Helpers.StringToTable
 local Class = Helpers.NewClass
 local Find = Helpers.TableFind

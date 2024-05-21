@@ -1,27 +1,28 @@
 --[[
   Name: Lexer.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-11-XX
+  Date: 2024-05-10
 --]]
 
 --* Dependencies *--
-local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Assembler/Lexer/Lexer")
-local Helpers = ModuleManager:loadModule("Helpers/Helpers")
+local Helpers = require("Helpers/Helpers")
+local TokenFactory = require("Assembler/Lexer/TokenFactory")
 
-local TokenFactory = ModuleManager:loadModule("Assembler/Lexer/TokenFactory")
-
---* Export library functions *--
-local stringToTable = Helpers.StringToTable
+--* Imports *--
+local stringToTable = Helpers.stringToTable
 local insert = table.insert
 local concat = table.concat
 
 local createIdentifierToken = TokenFactory.createIdentifierToken
 local createStringToken = TokenFactory.createStringToken
 local createNumberToken = TokenFactory.createNumberToken
+local createAttributeToken = TokenFactory.createAttributeToken
+local createDirectiveToken = TokenFactory.createDirectiveToken
 local createCharacterToken = TokenFactory.createCharacterToken
 
 --* LexerMethods *--
 local LexerMethods = {}
+
 function LexerMethods:peek(n)
   return self.charStream[self.charPos + (n or 1)] or "\0"
 end
@@ -100,6 +101,26 @@ function LexerMethods:consumeWhitespace()
   end
 end
 
+-- Directive ::= #<Identifier>
+function LexerMethods:isDirective()
+  return self.curChar == "#" and self:peek():match("[%a_]")
+end
+
+-- Attribute ::= \.<Identifier>
+function LexerMethods:isAttribute()
+  return self.curChar == "." and self:peek():match("[%a_]")
+end
+
+function LexerMethods:consumeDirective()
+  self:consume() -- Consume "#"
+  return self:consumeIdentifier()
+end
+
+function LexerMethods:consumeAttribute()
+  self:consume() -- Consume "."
+  return self:consumeIdentifier()
+end
+
 function LexerMethods:getCurrentToken()
   if self:isWhitespace() then
     self:consumeWhitespace()
@@ -116,21 +137,30 @@ function LexerMethods:getCurrentToken()
   elseif self:isComment() then
     self:consumeComment()
     return
+  elseif self:isDirective() then
+    local newDirective = self:consumeDirective()
+    return createDirectiveToken(newDirective)
+  elseif self:isAttribute() then
+    local newAttribute = self:consumeAttribute()
+    return createAttributeToken(newAttribute)
   else
     return createCharacterToken(self.curChar)
   end
 end
 
 function LexerMethods:tokenize()
-  local tokens = {}
-  while self.curChar ~= "\0" do
+  local tokens, tokenIndex = {}, 1
+  local curChar = self.curChar
+  while curChar ~= "\0" do
     local currentToken = self:getCurrentToken()
     if currentToken then
-      insert(tokens, currentToken)
+      tokens[tokenIndex] = currentToken
+      tokenIndex = tokenIndex + 1
     end
 
-    self:consume()
+    curChar = self:consume()
   end
+
   return tokens
 end
 
@@ -142,15 +172,12 @@ function Lexer:new(assemblyCode)
   LexerInstance.charPos = 1
   LexerInstance.curChar = LexerInstance.charStream[1]
 
-  local function inheritModule(moduleName, moduleTable, field)
+  local function inheritModule(moduleName, moduleTable)
     for index, value in pairs(moduleTable) do
       if LexerInstance[index] then
         return error("Conflicting names in " .. moduleName .. " and LexerInstance: " .. index)
       end
-
-      if field then LexerInstance[field][index] = value
-      else          LexerInstance[index] = value
-      end
+      LexerInstance[index] = value
     end
   end
 

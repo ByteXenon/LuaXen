@@ -1,58 +1,185 @@
 --[[
   Name: ASTToTokensConverter.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-11-XX
+  Date: 2024-04-27
 --]]
 
 --* Dependencies *--
-local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Interpreter/LuaInterpreter/ASTToTokensConverter/ASTToTokensConverter")
-local Helpers = ModuleManager:loadModule("Helpers/Helpers")
+local Helpers = require("Helpers/Helpers")
 
-local TokenFactory = ModuleManager:loadModule("Interpreter/LuaInterpreter/ASTToTokensConverter/TokenFactory")
-local NodeTokenTemplates = ModuleManager:loadModule("Interpreter/LuaInterpreter/ASTToTokensConverter/NodeTokenTemplates")
-local Lexer = ModuleManager:loadModule("Interpreter/LuaInterpreter/Lexer/Lexer")
-local Parser = ModuleManager:loadModule("Interpreter/LuaInterpreter/Parser/Parser")
+local NodeTemplates  = require("Interpreter/LuaInterpreter/ASTToTokensConverter/Converters/NodeTemplates")
+local NodeConverters = require("Interpreter/LuaInterpreter/ASTToTokensConverter/Converters/NodeConverters")
+local TokenFactory = require("Interpreter/LuaInterpreter/Lexer/TokenFactory")
 
---* Export library functions *--
-local stringifyTable = Helpers.StringifyTable
-local find = table.find or Helpers.TableFind
+--* Imports *--
 local concat = table.concat
 local insert = table.insert
 
---* ASTToTokensConverter *--
-local ASTToTokensConverter = {}
-function ASTToTokensConverter:new(astHierarchy)
-  local ASTToTokensConverterInstance = {}
-  for index, func in pairs(NodeTokenTemplates) do
-    ASTToTokensConverterInstance[index] = func
-  end
+local createEOFToken           = TokenFactory.createEOFToken
+local createNewLineToken       = TokenFactory.createNewLineToken
+local createVarArgToken        = TokenFactory.createVarArgToken
+local createWhitespaceToken    = TokenFactory.createWhitespaceToken
+local createCommentToken       = TokenFactory.createCommentToken
+local createNumberToken        = TokenFactory.createNumberToken
+local createConstantToken      = TokenFactory.createConstantToken
+local createOperatorToken      = TokenFactory.createOperatorToken
+local createKeywordToken       = TokenFactory.createKeywordToken
+local createIdentifierToken    = TokenFactory.createIdentifierToken
+local createCharacterToken     = TokenFactory.createCharacterToken
+local createStringToken        = TokenFactory.createStringToken
 
-  ASTToTokensConverterInstance.ast = astHierarchy
+--* ASTToTokensConverterMethods *--
+local ASTToTokensConverterMethods = {}
 
-  function ASTToTokensConverterInstance:tokenizeNode(node)
-    local nodeType = node.TYPE
-    local nodeFunc = self[nodeType]
-    if not nodeFunc then
-      return error(("Invalid token type: %s"):format(nodeType or "nil"))
+function ASTToTokensConverterMethods:applyConversionRule(node, rule)
+  local ruleType = rule.TYPE
+  local ruleValue = rule.Value
+
+  if ruleType == "Keyword" then
+    return insert(self.tokens, createKeywordToken(ruleValue))
+  elseif ruleType == "Character" then
+    return insert(self.tokens, createCharacterToken(ruleValue))
+  elseif ruleType == "ParsedExpression" then
+    return self:convertNode(node[ruleValue])
+  elseif ruleType == "ParsedBlock" then
+    return self:convertNode(node[ruleValue])
+  elseif ruleType == "Identifier" then
+    return insert(self.tokens, createIdentifierToken(node[ruleValue]))
+  elseif ruleType == "ParsedExpressions" then
+    for _, exprNode in ipairs(node[ruleValue]) do
+      self:convertNode(exprNode)
     end
-    local tokens = {}
-    nodeFunc(self, tokens, node)
-
-    return tokens
-  end
-  function ASTToTokensConverterInstance:tokenizeCodeBlock(list)
-    local tokens = {}
-    for index, node in ipairs(list) do
-      local returnedTokens = self:tokenizeNode(node)
-      for index, token in ipairs(returnedTokens) do
-        insert(tokens, token)
+  elseif ruleType == "ParsedExpressionsWithCommas" then
+    for index, exprNode in ipairs(node[ruleValue]) do
+      self:convertNode(exprNode)
+      if index < #node[ruleValue] then
+        insert(self.tokens, createCharacterToken(","))
       end
     end
-    return tokens
+  elseif ruleType == "IdentifierList" then
+    for _, idNode in ipairs(node[ruleValue]) do
+      self:convertNode(idNode)
+    end
+
+  elseif ruleType == "StringIdentifierList" then
+    for _, idNode in ipairs(node[ruleValue]) do
+      insert(self.tokens, createIdentifierToken(idNode))
+    end
+  elseif ruleType == "StringIdentifierListWithCommas" then
+    for index, idNode in ipairs(node[ruleValue]) do
+      insert(self.tokens, createIdentifierToken(idNode))
+      if index < #node[ruleValue] then
+        insert(self.tokens, createCharacterToken(","))
+      end
+    end
+
+  elseif ruleType == "VariableList" then
+    for _, varNode in ipairs(node[ruleValue]) do
+      self:convertNode(varNode)
+    end
+  elseif ruleType == "ParsedElseIfs" then
+    if node[ruleValue] then -- If there are elseifs
+      for _, elseIfNode in ipairs(node[ruleValue]) do
+        self:convertNode(elseIfNode)
+      end
+    end
+  elseif ruleType == "ParsedElse" then
+    if node[ruleValue] then -- If there is an else
+      self:convertNode(node[ruleValue])
+    end
+  else error("Invalid conversion rule type: " .. tostring(ruleType)) end
+end
+
+function ASTToTokensConverterMethods:convertNode(node)
+  if not node then return end
+  local nodeType = node.TYPE
+
+  if nodeType == "Group" then
+    return self:convertNodeList(node)
   end
-  function ASTToTokensConverterInstance:run()
-    return self:tokenizeCodeBlock(self.ast)
+  while nodeType == "Expression" do
+    node = node.Value
+    nodeType = node.TYPE
   end
+  if not nodeType then return end
+
+  local nodeTemplate = NodeTemplates[nodeType]
+  if not nodeTemplate then
+    local nodeConverter = NodeConverters[nodeType]
+    assert(nodeConverter, "No template or converter found for node type: " .. tostring(nodeType))
+    return nodeConverter(self, node)
+  end
+  for index, conversionRule in ipairs(nodeTemplate) do
+    self:applyConversionRule(node, conversionRule)
+  end
+end
+
+function ASTToTokensConverterMethods:convertNodeList(nodeList)
+  for _, node in ipairs(nodeList) do
+    self:convertNode(node)
+    -- insert(self.tokens, createCharacterToken(";"))
+  end
+end
+
+function ASTToTokensConverterMethods:convertNodeListWithSeparator(nodeList)
+  local tokens = self.tokens
+  for index, node in ipairs(nodeList) do
+    self:convertNode(node)
+    if index < #nodeList then
+      insert(tokens, createCharacterToken(","))
+    end
+  end
+end
+
+function ASTToTokensConverterMethods:convertFunctionParameters(node)
+  local parameters = node.Parameters
+  local tokens = self.tokens
+  local vararg = node.IsVararg
+
+  insert(tokens, createCharacterToken("("))
+
+  for index, parameter in ipairs(parameters) do
+    local token = createIdentifierToken(parameter)
+    insert(tokens, token)
+
+    if (index < #parameters) or vararg then
+      insert(tokens, createCharacterToken(","))
+    end
+  end
+  if vararg then
+    insert(tokens, createVarArgToken(vararg))
+  end
+
+  insert(tokens, createCharacterToken(")"))
+end
+
+--// Main \\--
+function ASTToTokensConverterMethods:convert()
+  self:convertNodeList(self.ast)
+  return self.tokens
+end
+
+--* ASTToTokensConverter *--
+local ASTToTokensConverter = {}
+function ASTToTokensConverter:new(ast)
+  local ASTToTokensConverterInstance = {}
+  ASTToTokensConverterInstance.ast = ast
+  ASTToTokensConverterInstance.tokens = {}
+  ASTToTokensConverterInstance.configRules = {
+    useSemicolonsInsteadOfCommasInTable = false,
+  }
+
+  local function inheritModule(moduleName, moduleTable)
+    for index, value in pairs(moduleTable) do
+      if ASTToTokensConverterInstance[index] then
+        return error("Conflicting names in " .. moduleName .. " and ASTToTokensConverterInstance: " .. index)
+      end
+      ASTToTokensConverterInstance[index] = value
+    end
+  end
+
+  -- Main
+  inheritModule("ASTToTokensConverterMethods", ASTToTokensConverterMethods)
 
   return ASTToTokensConverterInstance
 end

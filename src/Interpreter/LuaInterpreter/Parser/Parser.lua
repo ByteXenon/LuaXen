@@ -1,68 +1,83 @@
 --[[
   Name: Parser.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-11-XX
+  Date: 2024-05-21
 --]]
 
 --* Dependencies *--
-local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Interpreter/LuaInterpreter/Parser/Parser")
-local Helpers = ModuleManager:loadModule("Helpers/Helpers")
+local Helpers = require("Helpers/Helpers")
 
-local StatementParser = ModuleManager:loadModule("Interpreter/LuaInterpreter/Parser/StatementParser")
-local NodeFactory = ModuleManager:loadModule("Interpreter/LuaInterpreter/Parser/NodeFactory")
--- local LuaMathParser = ModuleManager:loadModule("Interpreter/LuaInterpreter/Parser/LuaMathParser")
-local LuaMathParser = ModuleManager:loadModule("Interpreter/LuaInterpreter/Parser/LuaMathParser")
+--// Node modules //--
+local NodeFactory = require("Interpreter/LuaInterpreter/Parser/NodeFactory")
+local NodeSpecs = require("Interpreter/LuaInterpreter/Parser/NodeSpecs")
 
---* Export library functions *--
-local stringifyTable = Helpers.StringifyTable
-local find = table.find or Helpers.TableFind
+--// Managers //--
+local ScopeManager    = require("Interpreter/LuaInterpreter/Parser/Managers/ScopeManager")
+local VariableManager = require("Interpreter/LuaInterpreter/Parser/Managers/VariableManager")
+
+--// Utility parsers //--
+local LuaMathParser = require("Interpreter/LuaInterpreter/Parser/LuaMathParser/LuaMathParser")
+
+--// Syntax parsers //--
+local Keywords   = require("Interpreter/LuaInterpreter/Parser/SyntaxParsers/Keywords")
+local Statements = require("Interpreter/LuaInterpreter/Parser/SyntaxParsers/Statements")
+
+--* Imports *--
+local stringifyTable = Helpers.stringifyTable
+local find = table.find or Helpers.tableFind
 local insert = table.insert
+local unpack = (unpack or table.unpack)
 
-local createIdentifierNode = NodeFactory.createIdentifierNode
+local createASTNode            = NodeFactory.createASTNode            -- (...)
+local createLocalVariableNode  = NodeFactory.createLocalVariableNode  -- (value)
+local createGlobalVariableNode = NodeFactory.createGlobalVariableNode -- (value)
+local createUpvalueNode        = NodeFactory.createUpvalueNode        -- (value, upvalueLevel)
 
 --* Constants *--
-local STOP_PARSING_VALUE = -1
+local EOF_TOKEN = { TYPE = "EOF" }
+local STOP_KEYWORDS_LOOKUP_TABLE = {
+  ["end"]    = true,
+  ["else"]   = true,
+  ["elseif"] = true,
+  ["until"]  = true
+}
 
 --* ParserMethods *--
 local ParserMethods = {}
 
+--/////// Token Traversal ///////--
+
 function ParserMethods:peek(n)
-  -- Place "EOF" just in case so the script wouldn't error on an
-  -- unexpected end of tokens, instead it will output the native error function
-  return self.tokens[self.currentTokenIndex + (n or 1)]  or { TYPE = "EOF" }
+  return self.tokens[self.currentTokenIndex + (n or 1)]
 end
 
 function ParserMethods:consume(n)
   self.currentTokenIndex = self.currentTokenIndex + (n or 1)
-  self.currentToken = self.tokens[self.currentTokenIndex] or { TYPE = "EOF" }
+  self.currentToken = self.tokens[self.currentTokenIndex]
   return self.currentToken
 end
 
+--/////// Expression Helpers ///////--
+
 function ParserMethods:compareTokenValueAndType(token, type, value)
-  return token and (not type or type == token.TYPE) and (not value or value == token.Value)
+  return token
+          and (not type  or type  == token.TYPE)
+          and (not value or value == token.Value)
 end
 
-function ParserMethods:tokenIsOneOf(token, tokenPairs)
-  local token = token or self.currentToken
-  for _, pair in ipairs(tokenPairs) do
-    if self:compareTokenValueAndType(token, pair[1], pair[2]) then return true end
-  end
-  return false
-end
-
-function ParserMethods:isClosingParenthesis(token)
-  return token.TYPE == "Character" and token.Value == ")"
-end
+--/////// Expect Helpers ///////--
 
 function ParserMethods:expectCurrentToken(tokenType, tokenValue)
   local currentToken = self.currentToken
-  if self:compareTokenValueAndType(currentToken, tokenType, tokenValue) then
-    return currentToken
+  if currentToken then
+    if (not tokenType) or currentToken.TYPE == tokenType then
+      if (not tokenValue) or currentToken.Value == tokenValue then
+        return currentToken
+      end
+    end
   end
 
-  return error(("Token mismatch, expected: { TYPE: %s, Value: %s }, got: { TYPE: %s, Value: %s }"):format(
-    tostring(tokenType), tostring(tokenValue), tostring(currentToken.TYPE), tostring(currentToken.Value)
-  ))
+  error("Unexpected token at: " .. (currentToken and currentToken.Value or "EOF"))
 end
 
 function ParserMethods:expectNextToken(tokenType, tokenValue)
@@ -80,146 +95,157 @@ function ParserMethods:expectNextTokenAndConsume(tokenType, tokenValue)
   return self:consume()
 end
 
-function ParserMethods:isTable()
-  local token = self.currentToken
-  return token and token.TYPE == "Character" and token.TYPE == "{"
-end;
+--/////// Utility Functions ///////--
 
-function ParserMethods:addSelfToArguments(arguments)
-  local newArguments = { createIdentifierNode("self") }
-  for index, value in ipairs(arguments) do
-    newArguments[index + 1] = value
-  end
-  return newArguments
-end
+--- Converts an identifier token to a variable node.
+function ParserMethods:convertIdentifierToVariableNode(token)
+  local tokenValue = token.Value
 
-function ParserMethods:identifiersToValues(identifiers)
-  local values = {}
-  for _, identifierNode in ipairs(identifiers) do
-    insert(values, identifierNode.Value)
-  end
-  return values
-end
-
-function ParserMethods:consumeExpression(errorOnFail)
-  local expression = LuaMathParser:getExpression(self, self.tokens, self.currentTokenIndex, errorOnFail)
-  return expression
-end
-
-function ParserMethods:consumeMultipleExpressions(maxAmount)
-  local expressions = { self:consumeExpression(false) }
-
-  if #expressions == 0 then return expressions end
-  if self:compareTokenValueAndType(self:peek(), "Character", ",") then
-    while self:compareTokenValueAndType(self:peek(), "Character", ",") do
-      if maxAmount and #expressions >= maxAmount then break end
-      self:consume() -- Consume the last token of the last expression
-      self:consume() -- Consume ","
-      insert(expressions, self:consumeExpression(false))
-    end
+  local variableType, upvalueIndex, currentScopeVariable = self:getVariableType(tokenValue)
+  local variable
+  if variableType == "Local" then
+    variable = createLocalVariableNode(tokenValue)
+  elseif variableType == "Global" then
+    variable = createGlobalVariableNode(tokenValue)
+  elseif variableType == "Upvalue" then
+    variable = createUpvalueNode(tokenValue, upvalueIndex)
   end
 
-  return expressions
+  -- Add some metadata to the variable node
+  if self.includeMetadata then
+    variable._Variable = currentScopeVariable
+  end
+  return variable, currentScopeVariable
 end
 
-function ParserMethods:consumeMultipleIdentifiers(oneOrMore)
-  local identifiers = {}
-  if oneOrMore then self:expectCurrentToken("Identifier") end
+--/////// General ///////--
 
-  while self:compareTokenValueAndType(self.currentToken, "Identifier") do
-    local identifier = self.currentToken
-    insert(identifiers, identifier)
-    if not self:compareTokenValueAndType(self:consume(), "Character", ",") then
-      break
-    end
-    self:consume()
-  end
+function ParserMethods:getNextNode()
+  --[[
+    codeBlock:
+      // Note: After each non-terminal, there may be an optional semicolon.
+      <codeBlock> ::= ( <functionCall> | <statement> | <variableAssignment> ) ;?
+  --]]
 
-  return identifiers
-end
-
-function ParserMethods:areValidCodeBlockExpressions(expressions)
-  if not expressions then return end
-  if not expressions[1] then return end
-
-  if #expressions == 1 then
-    if expressions[1].Value.TYPE == "FunctionCall" then return true
-    elseif expressions[1].Value.TYPE == "MethodCall" then return true end
-  end
-
-  for _, value in ipairs(expressions) do
-    if value.Value.TYPE == "Identifier" or value.Value.TYPE == "Index" then
-    else return false end
-  end
-  return true
-end
-
-function ParserMethods:getNextNode(stopKeywords)
   local currentToken = self.currentToken
-  local value, type = currentToken.Value, currentToken.TYPE
+  local tokenValue, tokenType = currentToken.Value, currentToken.TYPE
 
-  local returnValue;
-  if type == "Keyword" then
-    if stopKeywords and find(stopKeywords, value) then
-      return STOP_PARSING_VALUE
-    end
-
-    local keywordFunction = self["_" .. value]
-    if not keywordFunction then
-      error("Unsupported keyword on Lua Parser side: " .. value)
-    end
-    returnValue = keywordFunction(self)
-  elseif type == "EOF" then
-    return STOP_PARSING_VALUE
-  else
-    local codeBlockExpressions = self:consumeMultipleExpressions()
-    if not self:areValidCodeBlockExpressions(codeBlockExpressions) then
-      Helpers.PrintTable(self.tokens)
-      print(self.currentTokenIndex)
-      return error(("Unexpected node: %s (Perhaps you forgot to place a ';' there?)"):format(stringifyTable(codeBlockExpressions)))
+  -- <statement>
+  if tokenType == "Keyword" then
+    if STOP_KEYWORDS_LOOKUP_TABLE[tokenValue] then
+      return nil
     end
 
-    if codeBlockExpressions[1].Value.TYPE == "FunctionCall" or codeBlockExpressions[1].Value.TYPE == "MethodCall" then
-      returnValue = codeBlockExpressions[1].Value
-    else
-      self:consume() -- Consume the last variable token
-      returnValue = self:__VariableAssignment(codeBlockExpressions)
-    end
+    local keywordFunction = self[tokenValue]
+    local returnValue = keywordFunction(self)
+    self:consumeNextOptionalSemicolon()
+    return returnValue
   end
 
-  -- Consume an optional semicolon
-  if self:compareTokenValueAndType(self:peek(), "Character", ";") then
-    self:consume()
-  end
+  -- <functionCall> | <variableAssignment>
+  local returnValue = self:parseFunctionCallOrVariableAssignment()
+  self:consumeNextOptionalSemicolon()
   return returnValue
 end
 
-function ParserMethods:consumeCodeBlock(stopKeywords)
-  local ast = {}
-  while self.currentToken do
-    local newAST = self:getNextNode(stopKeywords)
-    if not newAST then error(("Unexpected token: %s"):format(stringifyTable(currentToken)))
-    elseif newAST == STOP_PARSING_VALUE then break end
+function ParserMethods:consumeCodeBlock(isFunction, dontPushScope)
+  if not dontPushScope then self:pushScope(isFunction) end
 
-    insert(ast, newAST)
-    self:consume()
+  local codeblock, codeblockIndex = {}, 1
+  local currentToken = self.currentToken
+  while currentToken do
+    local astNode = self:getNextNode()
+    if not astNode then break end
+
+    codeblock[codeblockIndex] = astNode
+    codeblockIndex = codeblockIndex + 1
+    currentToken = self:consume()
   end
+
+  if not dontPushScope then self:popScope() end
+  return codeblock
+end
+
+function ParserMethods:setParents(node, parent)
+  local function setParents(node, parent)
+    node.Parent = parent
+    local nodeSpec = NodeSpecs[node.TYPE]
+    for fieldName, fieldType in pairs(nodeSpec) do
+      if fieldType == "Node" or fieldType == "OptionalNode" then
+        local child = node[fieldName]
+        if child then
+          setParents(child, node)
+        end
+      elseif fieldType == "NodeList" then
+        for index, child in ipairs(node[fieldName]) do
+          setParents(child, node)
+        end
+      end
+    end
+  end
+
+  return setParents(node, parent)
+end
+
+--/////// Main ///////--
+
+function ParserMethods:parse()
+  local globalScope = self:pushScope()
+  local ast = self:consumeCodeBlock(false, true)
+  self:popScope()
+  assert((#self.scopes == 0 and not self.currentScope), "ScopeManager did not pop all scopes")
+
+  local ast = createASTNode(unpack(ast))
+  if self.includeMetadata then
+    ast._metadata = {
+      variables = self.variables,
+      globals = self.globals,
+      constants = self.constants,
+      globalScope = globalScope
+    } --[[
+    for index, value in ipairs(ast) do
+      self:setParents(value, ast)
+    end --]]
+  end
+
   return ast
 end
 
--- Main method (public)
-function ParserMethods:parse()
-  local returnValue = self:consumeCodeBlock()
-  return returnValue
+--- Resets the parser to its initial state so it can be reused.
+-- @param tokens The tokens to reset the parser to.
+function ParserMethods:resetToInitialState(tokens, includeMetadata)
+  self.tokens = tokens
+  self.currentToken = tokens and tokens[1]
+  self.currentTokenIndex = 1
+  self.expectedReturnValueCount = 0
+  self.includeMetadata = (includeMetadata == nil and true) or includeMetadata
+  -- ScopeManager/VariableManager fields
+  self.scopes = {}
+  self.currentScope = nil
+  -- VariableManager-only fields
+  self.variables = {}
+  self.registeredGlobals = {}
+  self.globals = {}
+  self.constants = {}
 end
 
 --* Parser *--
 local Parser = {}
-function Parser:new(tokens)
+function Parser:new(tokens, includeMetadata)
   local ParserInstance = {}
   ParserInstance.tokens = tokens
-  ParserInstance.currentToken = tokens[1]
+  ParserInstance.currentToken = tokens and tokens[1]
   ParserInstance.currentTokenIndex = 1
+  ParserInstance.expectedReturnValueCount = 0
+  ParserInstance.includeMetadata = (includeMetadata == nil and true) or includeMetadata
+  -- ScopeManager/VariableManager fields
+  ParserInstance.scopes = {}
+  ParserInstance.currentScope = nil
+  -- VariableManager-only fields
+  ParserInstance.variables = {}
+  ParserInstance.registeredGlobals = {}
+  ParserInstance.globals = {}
+  ParserInstance.constants = {}
 
   local function inheritModule(moduleName, moduleTable)
     for index, value in pairs(moduleTable) do
@@ -233,9 +259,14 @@ function Parser:new(tokens)
   -- Main
   inheritModule("ParserMethods", ParserMethods)
 
-  -- Other
-  inheritModule("StatementParser", StatementParser)
-  -- inheritModule("LuaMathParser", LuaMathParser:new())
+  -- Parsers
+  inheritModule("LuaMathParser", LuaMathParser)
+  inheritModule("Statements", Statements)
+  inheritModule("Keywords", Keywords)
+
+  -- Managers
+  inheritModule("ScopeManager", ScopeManager)
+  inheritModule("VariableManager", VariableManager)
 
   return ParserInstance
 end

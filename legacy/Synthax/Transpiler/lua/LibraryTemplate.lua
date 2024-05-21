@@ -9,7 +9,7 @@ local Template = [==[
 local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Something/Something")
 local Helpers = ModuleManager:loadModule("Helpers/Helpers")
 
---* Export library functions *--
+--* Imports *--
 local Class = Helpers.NewClass
 local insert = table.insert
 local concat = table.concat

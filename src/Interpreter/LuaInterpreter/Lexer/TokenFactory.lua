@@ -1,7 +1,7 @@
 --[[
   Name: TokenFactory.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-11-XX
+  Date: 2024-04-26
 --]]
 
 --* TokenFactory *--
@@ -13,32 +13,38 @@ end
 function TokenFactory.createNewLineToken()
   return { TYPE = "NewLine" }
 end
+function TokenFactory.createVarArgToken()
+  return { TYPE = "VarArg" }
+end
 function TokenFactory.createWhitespaceToken(value)
   return { TYPE = "Whitespace", Value = value }
 end
 function TokenFactory.createCommentToken(value)
-    return { TYPE = "Comment", Value = value }
+  return { TYPE = "Comment", Value = value }
 end
 function TokenFactory.createNumberToken(value)
-    return { TYPE = "Number", Value = value }
+  return { TYPE = "Number", Value = value }
 end
 function TokenFactory.createConstantToken(value)
-    return { TYPE = "Constant", Value = value }
+  return { TYPE = "Constant", Value = value }
 end
 function TokenFactory.createOperatorToken(value)
-    return { TYPE = "Operator", Value = value }
+  return { TYPE = "Operator", Value = value }
 end
 function TokenFactory.createKeywordToken(value)
-    return { TYPE = "Keyword", Value = value }
+  return { TYPE = "Keyword", Value = value }
 end
 function TokenFactory.createIdentifierToken(value)
-    return { TYPE = "Identifier", Value = value }
+  return { TYPE = "Identifier", Value = value }
 end
 function TokenFactory.createCharacterToken(value)
-    return { TYPE = "Character", Value = value }
+  return { TYPE = "Character", Value = value }
 end
-function TokenFactory.createStringToken(value)
-    return { TYPE = "String", Value = value }
+function TokenFactory.createStringToken(value, stringType, delimiter)
+  return { TYPE = "String",
+    Value = value,
+    StringType = stringType,
+    Delimiter = delimiter }
 end
 
 return TokenFactory

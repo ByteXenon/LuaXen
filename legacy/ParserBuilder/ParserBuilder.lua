@@ -8,7 +8,7 @@
 local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Interpreter/ParserBuilder/ParserBuilder")
 local Helpers = ModuleManager:loadModule("Helpers/Helpers")
 
---* Export library functions *--
+--* Imports *--
 local insert = table.insert
 local concat = table.concat
 local StringToTable = Helpers.StringToTable

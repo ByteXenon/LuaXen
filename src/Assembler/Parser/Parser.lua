@@ -1,23 +1,28 @@
 --[[
   Name: Parser.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-11-XX
+  Date: 2024-05-10
   Description:
     This module is a core component of a pseudo-assembly language parser.
-    It takes a sequence of assembly tokens and parses them into a LuaState.
-    The module handles various assembly statements and constructs, 
+    It takes a sequence of assembly tokens and parses them into a Proto.
+    The module handles various assembly statements and constructs,
     effectively translating assembly code into a format that can be executed within a Lua environment.
 --]]
 
 --* Dependencies *--
-local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Assembler/Parser/Parser")
+local Helpers = require("Helpers/Helpers")
+local Proto = require("Structures/Proto")
 
-local Helpers = ModuleManager:loadModule("Helpers/Helpers")
-local LuaState = ModuleManager:loadModule("LuaState/LuaState")
-local StatementParser = ModuleManager:loadModule("Assembler/Parser/StatementParser")
+local StatementParser = require("Assembler/Parser/StatementParser")
+local Preprocessor = require("Assembler/Parser/Preprocessor/Preprocessor")
 
---* Export library functions *--
-local find = Helpers.TableFind
+--* Constants *--
+local STOP_CHARACTER_TOKENS_LOOKUP = {
+  ["}"] = true
+}
+
+--* Imports *--
+local find = Helpers.tableFind
 local insert = table.insert
 local concat = table.concat
 
@@ -35,7 +40,7 @@ function ParserMethods:consume(n)
 end
 
 function ParserMethods:findOrCreateConstant(value)
-  local constants = self.luaState.constants
+  local constants = self.proto.constants
   local constantIndex = find(constants, value)
   if not constantIndex then
     insert(constants, value)
@@ -54,74 +59,85 @@ end
 function ParserMethods:expectCurToken(type, value, dontConsume)
   local curToken = self.curToken
   if not curToken or not (curToken.TYPE == type and curToken.Value == value) then
-    error("Expected token type: " .. type .. " (" .. value .. ")")
+    return error("Expected token type: " .. type .. " (" .. value .. ")")
   end
   if not dontConsume then self:consume() end
   return curToken
 end
 
 function ParserMethods:parseToken()
-  if self:compareToken(self.curToken, "Identifier") then
+  local currentToken = self.curToken
+  local currentTokenType = currentToken.TYPE
+  if currentTokenType == "Identifier" then
     return self:identifier()
-  elseif self:compareToken(self.curToken, "String") then
-    return self:findOrCreateConstant(self.curToken.Value)
-  elseif self:compareToken(self.curToken, "Number") then
-    return self:findOrCreateConstant(tonumber(self.curToken.Value))
+  elseif currentTokenType == "String" then
+    return self:findOrCreateConstant(currentToken.Value)
+  elseif currentTokenType == "Number" then
+    return self:findOrCreateConstant(tonumber(currentToken.Value))
+
+  -- Pre-processor stuff
+  elseif currentTokenType == "Attribute" then
+    return self:attribute(currentToken)
+  elseif currentTokenType == "Directive" then
+    return self:directive(currentToken)
   end
-  return error("Unexpected token type: " .. tostring(self.curToken.TYPE) .. " (" .. self.curToken.Value .. ")")
+
+  return error("Unexpected token type: " .. tostring(currentToken.TYPE) .. " (" .. currentToken.Value .. ")")
 end
 
-function ParserMethods:parseTokens(stopTokens)
-  while self.curToken do
-    if stopTokens then
-      local curToken = self.curToken
-      for _, stopToken in ipairs(stopTokens) do
-        local curTokenType, stopTokenValue = curToken.TYPE, stopToken.TYPE
-        local curTokenValue, stopTokenValue = curToken.Value, stopToken.Value
-        if curTokenType == stopTokenType and curTokenValue == stopTokenValue then
-          return ast
-        end
-      end
+function ParserMethods:parseTokens(stopAtStopTokens)
+  local currentToken = self.curToken
+  while currentToken do
+    if stopAtStopTokens and STOP_CHARACTER_TOKENS_LOOKUP[currentToken.Value] then
+      break
     end
+
     self:parseToken()
-    self:consume()
+    currentToken = self:consume()
   end
 end
 
+function ParserMethods:parseFunction()
+  local oldProto = self.proto
+  local newProto = Proto:new()
+  newProto.constants = oldProto.constants
+
+  self.proto = newProto
+  self:parseTokens(true)
+  self.proto = oldProto
+  return newProto
+end
+
+-- Main (public)
 function ParserMethods:parse()
   self:parseTokens()
-  return self.luaState
+  return self.proto
 end
 
 --* Parser *--
 local Parser = {};
-function Parser:new(tokens, luaState)
+function Parser:new(tokens, proto)
   local ParserInstance = {}
   ParserInstance.tokens = tokens
   ParserInstance.tokenPos = 1
   ParserInstance.curToken = tokens[1]
-  ParserInstance.luaState = {}
+  ParserInstance.proto = (proto or Proto:new())
   ParserInstance.labels = {}
 
-  local function inheritModule(moduleName, moduleTable, field)
+  local function inheritModule(moduleName, moduleTable)
     for index, value in pairs(moduleTable) do
       if ParserInstance[index] then
         return error("Conflicting names in " .. moduleName .. " and ParserInstance: " .. index)
       end
-      if field then
-        ParserInstance[field][index] = value
-      else
-        ParserInstance[index] = value
-      end
+      ParserInstance[index] = value
     end
   end
 
   -- Main
   inheritModule("ParserMethods", ParserMethods)
-  inheritModule("StatementParser", StatementParser)
 
-  -- LuaState
-  inheritModule("LuaState", LuaState:new(), "luaState")
+  inheritModule("StatementParser", StatementParser)
+  inheritModule("Preprocessor", Preprocessor)
 
   return ParserInstance
 end

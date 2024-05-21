@@ -1,7 +1,7 @@
 --[[
   Name: TokenFactory.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-11-XX
+  Date: 2024-05-10
 --]]
 
 --* TokenFactory *--
@@ -18,6 +18,12 @@ function TokenFactory.createNumberToken(value)
 end
 function TokenFactory.createCharacterToken(value)
   return { TYPE = "Character", Value = value }
+end
+function TokenFactory.createAttributeToken(value)
+  return { TYPE = "Attribute", Value = value }
+end
+function TokenFactory.createDirectiveToken(value)
+  return { TYPE = "Directive", Value = value }
 end
 
 return TokenFactory

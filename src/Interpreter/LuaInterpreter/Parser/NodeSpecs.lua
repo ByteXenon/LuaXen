@@ -1,64 +1,68 @@
 --[[
   Name: NodeSpecs.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-11-XX
+  Date: 2024-04-29
   Description:
     This file contains the specifications for the AST nodes.
-    It is mainly used for traversing the AST.
+    It is mainly used for traversing ASTs
 --]]
 
 --[[
   Types of Fields:
-    - String: A string
-    - StringList: A list of strings
     - Node: A node
     - NodeList: A list of nodes
     - OptionalNode: A node or nil
-    - TableElementList: A list of table elements
-    - Value: A value
 --]]
 
 local NodeSpecs = {
+  --/// Primitive nodes \\\--
+  Identifier          = { },
+  Constant            = { },
+  Number              = { },
+  String              = { },
+  Boolean             = { },
+  VarArg              = { },
+  Variable            = { },
+
+  --/// Operator nodes \\\--
+  Operator            = { Left    = "Node", Right = "Node" },
+  UnaryOperator       = { Operand = "Node"                 },
+
   --/// Expression nodes \\\--
-  Identifier          = { Value   = "Value"                                         },
-  Constant            = { Value   = "Value"                                         },
-  Number              = { Value   = "Value"                                         },
-  String              = { Value   = "Value"                                         },
+  Expression          = { Value      = "Node"                          },
+  FunctionCall        = { Expression = "Node", Arguments  = "NodeList" },
+  MethodCall          = { Expression = "Node", Arguments  = "NodeList" },
+  Index               = { Index      = "Node", Expression = "Node"     },
+  MethodIndex         = { Index      = "Node", Expression = "Node"     },
 
-  Operator            = { Left    = "Node", Right    = "Node",  Operator = "String" },
-  UnaryOperator       = { Operand = "Node", Operator = "String"                     },
-  Expression          = { Value   = "Node"                                          },
+  --/// Table nodes \\\--
+  Table               = { Elements = "NodeList"             },
+  TableElement        = { Key      = "Node", Value = "Node" },
 
-  FunctionCall        = { Expression  = "Node", Arguments   = "NodeList"            },
-  MethodCall          = { Expression  = "Node", Arguments   = "NodeList"            },
+  --/// Function nodes \\\--
+  Function            = { CodeBlock = "NodeList"                      },
+  FunctionDeclaration = { CodeBlock = "NodeList", Expression = "Node" },
+  MethodDeclaration   = { CodeBlock = "NodeList", Expression = "Node" },
+  LocalFunction       = { CodeBlock = "NodeList"                      },
 
-  Index               = { Index       = "Node", Expression  = "Node"                },
-  MethodIndex         = { Index       = "Node", Expression  = "Node"                },
+  --/// Assignment nodes \\\--
+  VariableAssignment      = { Variables   = "NodeList", Expressions = "NodeList" },
+  LocalVariableAssignment = { Expressions = "NodeList"                           },
 
-  Table               = { Elements    = "TableElementList"                          },
-  TableElement        = { Key         = "Node", Value       = "Node"                },
+  --/// Control flow nodes \\\--
+  IfStatement             = { Condition   = "Node",    CodeBlock = "NodeList", ElseIfs = "NodeList", Else = "OptionalNode" },
+  ElseIfStatement         = { Condition   = "Node",    CodeBlock = "NodeList"                                              },
+  ElseStatement           = { CodeBlock   = "NodeList"                                                                     },
+  DoBlock                 = { CodeBlock   = "NodeList"                                                                     },
+  ReturnStatement         = { Expressions = "NodeList"                                                                     },
+  ContinueStatement       = { },
+  BreakStatement          = { },
 
-  --/// Statement nodes \\\--
-  Function            = { Parameters  = "StringList", CodeBlock = "NodeList"                                              },
-  FunctionDeclaration = { Parameters  = "StringList", CodeBlock = "NodeList", Fields  = "StringList"                      },
-  MethodDeclaration   = { Parameters  = "StringList", CodeBlock = "NodeList", Fields  = "StringList"                      },
-  LocalFunction       = { Parameters  = "StringList", CodeBlock = "NodeList", Name    = "String"                          },
-
-  VariableAssignment  = { Expressions = "NodeList", Variables   = "NodeList"                                              },
-  LocalVariable       = { Variables   = "NodeList", Expressions = "NodeList"                                              },
-  IfStatement         = { Condition   = "Node",     CodeBlock   = "NodeList", ElseIfs = "NodeList", Else = "OptionalNode" },
-  ElseIfStatement     = { Condition   = "Node",     CodeBlock   = "NodeList"                                              },
-  ElseStatement       = { CodeBlock   = "NodeList"                                                                        },
-  UntilLoop           = { CodeBlock   = "NodeList", Statement   = "Node"                                                  },
-  DoBlock             = { CodeBlock   = "NodeList"                                                                        },
-  WhileLoop           = { Expression  = "Node",     CodeBlock   = "NodeList"                                              },
-  ReturnStatement     = { Expressions = "NodeList"                                                                        },
-
-  ContinueStatement   = { },
-  BreakStatement      = { },
-
-  GenericFor          = { IteratorVariables = "StringList", Expression = "Node", CodeBlock = "NodeList" },
-  NumericFor          = { IteratorVariables = "StringList", Expression = "Node", CodeBlock = "NodeList" }
+  --/// Loop nodes \\\--
+  GenericFor          = { Expressions = "NodeList", CodeBlock = "NodeList" },
+  NumericFor          = { Expressions = "NodeList", CodeBlock = "NodeList" },
+  WhileLoop           = { Expression  = "Node",     CodeBlock = "NodeList" },
+  UntilLoop           = { Statement   = "Node",     CodeBlock = "NodeList" }
 }
 
 return NodeSpecs

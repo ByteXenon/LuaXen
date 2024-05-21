@@ -1,21 +1,23 @@
 --[[
   Name: lua.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-11-XX
+  Date: 2024-05-11
   Description:
-    This module serves as a Lua interpreter, providing functionalities such as executing Lua scripts
-    from a string or a file, entering interactive mode, and parsing command line arguments.
-    It also handles different Lua interpreter options and prints help and version information.
+    This module serves as a handler for the Lua interpreter.
+    It provides the command line interface for the Lua interpreter.
+    As well as multiple command line options.
+
+  Read the license file in the root of the project directory.
 --]]
 
 --* Dependencies *--
 local API = require("api")
 
-local Formats =           API.Modules.Formats
-local Helpers =           API.Modules.Helpers
+local AnsiFormatter     = API.Modules.AnsiFormatter
+local Helpers           = API.Modules.Helpers
 local SyntaxHighlighter = API.Modules.SyntaxHighlighter
 
---* Export library functions *--
+--* Imports *--
 local insert = table.insert
 local concat = table.concat
 local unpack = (unpack or table.unpack)
@@ -24,9 +26,10 @@ local unpack = (unpack or table.unpack)
 local lua = {
   optionSwitches = {},
   includes = {},
-  COPYRIGHT = "Lua 5.1.5 Copyright (C) 2023, ByteXenon & Friends",
+  COPYRIGHT = "Lua 5.1.5 Copyright (C) 2024, Bytexenuwu & Friends",
   VERSION   = "Lua 5.1"
 }
+
 lua.params = {
   ["-e"] = {{"stat"}, "execute string 'stat'",                            lua.executeString},
   ["-l"] = {{"name"}, "require library 'name'",                           lua.includeLibrary},
@@ -43,12 +46,12 @@ function lua.printHelp()
     local args = (param[1] and concat(param[1], ", ")) or ""
     local description = param[2] or ""
 
-    insert(lines, {"  ", index, "  ", argName, "  ", description})
+    insert(lines, {"  ", index, "  ", nil, "  ", description})
   end
 
   print("usage: lua [options] [script [args]].")
   print("Available options are:")
-  Helpers.PrintAligned(lines)
+  Helpers.printAligned(lines)
 end
 
 --- Prints the version information for the Lua interpreter.
@@ -59,16 +62,36 @@ end
 --- Enters interactive mode for the Lua interpreter.
 function lua.interactiveMode()
   lua.printVersion()
+
   local globalLuaState = API.LuaState.NewLuaState()
+  local pointingArrow = AnsiFormatter.formatString("%{BLUE}%lua> %{RESET}%")
+  local cursorUpAndClearLine = AnsiFormatter.formatString("%{CURSOR_UP:1:}%%{START_LINE}%%{CLEAR_LINE}%")
+
   while (true) do
-    io.write(Formats.formatString(">(blue)<>>> >(reset)<"))
+    io.write(pointingArrow)
+
     local input = io.stdin:read("*l")
     if input == "exit" then break end
     local tokensWithAdditionalInfo = API.Interpreter.ConvertToTokens(input, true)
-    local coloredCode = SyntaxHighlighter:new(tokensWithAdditionalInfo):getFormattedTokens()
-    print(Formats.formatString(">(up(1))<>(clear_line)<>(blue)<>>> >(reset)<") .. coloredCode)
+    local syntaxHighlightedCode = SyntaxHighlighter:new(tokensWithAdditionalInfo):getFormattedTokens()
 
-    API.ASTExecutor.ExecuteScript(input, globalLuaState)
+    -- Replace non-syntax-highlighted code with the syntax-highlighted code.
+    print(cursorUpAndClearLine .. pointingArrow .. syntaxHighlightedCode)
+
+    -- Execute the script and capture the output
+    local pcallReturnValues = {pcall(API.ASTExecutor.ExecuteScript, input, globalLuaState)}
+    local success, returnValues = pcallReturnValues[1], {select(2, unpack(pcallReturnValues))}
+
+    -- Print the return value if the script executed successfully and returned a value
+    if success and #returnValues ~= 0 then
+      print(AnsiFormatter.formatString("%{RESET}%%{RGB_COLOR:0:255:0:}%returns: %{RESET}%%{RED}%{%{RESET}%"))
+      for index, value in pairs(returnValues) do
+        print("  " .. tostring(value))
+      end
+      print(AnsiFormatter.formatString("%{RED}%}%{RESET}%"))
+    elseif not success then
+      print(AnsiFormatter.formatString("%{RED}%error: %{RESET}%" .. returnValues[1]))
+    end
   end
 end
 
@@ -132,9 +155,9 @@ function lua.executeString(string, varArgs)
   assert(type(string) == "string", "string must be a string")
 
   -- Use the AST executor for now
-  -- - Because the AST - instructions converter is
+  -- just because the AST-instructions converter is
   -- too buggy at this moment
-  return API.ASTExecutor.ExecuteScript(script)
+  return API.ASTExecutor.ExecuteScript(string)
 end
 
 --- Executes a Lua script from a file.
@@ -144,9 +167,11 @@ function lua.executeFile(filename, varArgs)
   assert(type(filename) == "string", "filename must be a string")
 
   local file = io.open(filename, "r")
+  if not file then return end
   local contents = file:read("*a")
   file:close()
   return lua.executeString(contents, varArgs)
 end
 
-lua.parseArgs({...})
+
+return lua.parseArgs({...})

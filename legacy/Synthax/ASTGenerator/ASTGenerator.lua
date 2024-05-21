@@ -8,7 +8,7 @@
 local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Interpreter/Synthax/ASTGenerator/ASTGenerator")
 local Helpers = ModuleManager:loadModule("Helpers/Helpers")
 
---* Export library functions *--
+--* Imports *--
 local CopyTableElements = Helpers.CopyTableElements
 local StringToTable = Helpers.StringToTable
 local ClearTable = Helpers.ClearTable

@@ -1,17 +1,15 @@
 --[[
   Name: themes.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2023-10-XX
+  Date: 2024-04-25
 --]]
 
-local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Interpreter/LuaInterpreter/SyntaxHighlighter/themes/themes")
-
-local function loadTheme(themeName)
-  return ModuleManager:loadModule("Interpreter/LuaInterpreter/SyntaxHighlighter/themes/" .. themeName)
-end
+local desert = require("Interpreter/LuaInterpreter/SyntaxHighlighter/themes/desert")
+local forest = require("Interpreter/LuaInterpreter/SyntaxHighlighter/themes/forest")
+local h4x = require("Interpreter/LuaInterpreter/SyntaxHighlighter/themes/h4x")
 
 return {
-  desert = loadTheme("desert"),
-  forest = loadTheme("forest"),
-  h4x = loadTheme("h4x")
+  desert = desert,
+  forest = forest,
+  h4x = h4x
 }

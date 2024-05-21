@@ -8,7 +8,7 @@
 local ModuleManager = require("ModuleManager/ModuleManager"):newFile("Interpreter/Synthax/Transpiler/lua/Transpiler")
 local Helpers = ModuleManager:loadModule("Helpers/Helpers")
 
---* Export library functions *--
+--* Imports *--
 local Class = Helpers.NewClass
 local Format = Helpers.StringFormat
 local TableFind = Helpers.TableFind
