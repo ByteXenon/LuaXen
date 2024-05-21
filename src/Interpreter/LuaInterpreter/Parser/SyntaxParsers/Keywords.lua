@@ -1,7 +1,7 @@
 --[[
   Name: Keywords.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2024-05-14
+  Date: 2024-05-21
 --]]
 
 --* Dependencies *--
@@ -183,9 +183,7 @@ Keywords["for"] = function(self)
   if #iteratorVariables > 1 or self:compareTokenValueAndType(self.currentToken, "Keyword", "in") then
     -- Generic loop
     self:expectCurrentTokenAndConsume("Keyword", "in")
-    self.expectedReturnValueCount = 3
     local expressions = self:getExpressions()
-    self.expectedReturnValueCount = 0
     self:expectNextTokenAndConsume("Keyword", "do")
     local variables = {}
     for index, identifierValue in ipairs(iteratorVariables) do

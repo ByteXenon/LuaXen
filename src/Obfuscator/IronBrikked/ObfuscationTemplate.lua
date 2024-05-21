@@ -1,5 +1,5 @@
 --[[
-  Name: 0.lua
+  Name: ObfuscationTemplate.lua
   Author: ByteXenon [Luna Gilbert]
   Date: 2024-05-21
 
@@ -216,9 +216,6 @@ return (function(str, ...)
       elseif opmode == MODE_iAsBx then
         instruction[2] = readTwoBytes() -- A
         instruction[3] = readFourBytes() - 65536 -- sBx
-      -- elseif opmode == MODE_iAB then
-        -- instruction[2] = readTwoBytes() -- A
-        -- instruction[3] = readTwoBytes() -- B
       end
 
       -- Put constants into operands from two complement form
@@ -274,6 +271,7 @@ return (function(str, ...)
       end
       local numVarargs = handlerVarargLen - numParams + 1
       repeat
+        local instruction, opcode = instructions[pc], instructions[pc][1]
         -- <Instructions will be placed here>
         -- <it's supposed to be empty>
 

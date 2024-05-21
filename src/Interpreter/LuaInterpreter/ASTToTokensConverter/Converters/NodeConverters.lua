@@ -1,7 +1,7 @@
 --[[
   Name: NodeConverters.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2024-04-29
+  Date: 2024-05-21
   Description:
     Converters are functions that convert AST nodes into tokens.
 --]]
@@ -31,7 +31,7 @@ local function shouldPlaceParenthesesOperator(node)
   local nodeType = node.TYPE
   if nodeType == "Variable" or nodeType == "Identifier"
       or nodeType == "Number" or nodeType == "String"
-      or nodeType == "Constant" then
+      or nodeType == "Constant" or nodeType == "Operator" then
         return false
   elseif nodeType == "Expression" then
     return shouldPlaceParenthesesOperator(node.Value)

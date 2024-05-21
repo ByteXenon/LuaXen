@@ -1,7 +1,7 @@
 --[[
   Name: Helpers.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2024-04-29
+  Date: 2024-05-21
 ]]
 
 --* Import library functions *--
@@ -215,7 +215,7 @@ function Helpers.stringifyTable(inputTable, spacing)
   end
 
   local visitedTables = {}
-  function visitTable(table, indentation)
+  local function visitTable(table, indentation)
     if visitedTables[table] and visitedTables[table] >= 3 then
       -- Terminate any possibility of an infinite recursion
       return string.rep(indentString, indentation) .. "<Repeated table>"

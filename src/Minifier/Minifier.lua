@@ -1,7 +1,7 @@
 --[[
   Name: Minifier.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2024-05-09
+  Date: 2024-05-21
 --]]
 
 --* Dependencies *--
@@ -31,6 +31,8 @@ local DEFAULT_FORBIDDEN_NAMES = {
 local insert = table.insert
 local floor = math.floor
 
+local shallowCopyTable = Helpers.shallowCopyTable
+
 --* Lookup Tables *--
 local dict1Lookup = {}
 local dict2Lookup = {}
@@ -38,14 +40,6 @@ local dict2Lookup = {}
 for i = 1, (#DICT1) do dict1Lookup[i] = DICT1:sub(i, i) end
 for i = 1, (#DICT2) do dict2Lookup[i] = DICT2:sub(i, i) end
 
---* Local functions *--
-local function shallowCopyTable(table)
-  local copy = {}
-  for index, value in pairs(table) do
-    copy[index] = value
-  end
-  return copy
-end
 
 --* MinifierMethods *--
 local MinifierMethods = {}

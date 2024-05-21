@@ -1,7 +1,7 @@
 --[[
-  Name: Minifier.lua
+  Name: Obfuscator.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2024-05-07
+  Date: 2024-05-21
 --]]
 
 --* Dependencies *--

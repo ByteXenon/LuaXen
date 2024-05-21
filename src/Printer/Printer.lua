@@ -1,7 +1,7 @@
 --[[
   Name: Printer.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2024-05-08
+  Date: 2024-05-21
 --]]
 
 --* Dependencies *--

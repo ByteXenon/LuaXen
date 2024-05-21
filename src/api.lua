@@ -18,13 +18,15 @@ local Parser = require("Interpreter/LuaInterpreter/Parser/Parser")
 local InstructionGenerator = require("Interpreter/LuaInterpreter/InstructionGenerator/InstructionGenerator")
 local ASTToTokensConverter = require("Interpreter/LuaInterpreter/ASTToTokensConverter/ASTToTokensConverter")
 local VirtualMachine = require("VirtualMachine/VirtualMachine")
-local Beautifier = require("Beautifier/Beautifier")
 local Minifier = require("Minifier/Minifier")
 local Packer = require("Packer/Packer")
 local LuaState = require("Structures/LuaState")
 local ASTExecutor = require("ASTExecutor/ASTExecutor")
 local Printer = require("Printer/Printer")
+local ASTPrinter = require("Printer/ASTPrinter/ASTPrinter")
 local SyntaxHighlighter = require("Interpreter/LuaInterpreter/SyntaxHighlighter/SyntaxHighlighter")
+local ASTObfuscator = require("Obfuscator/AST/ASTObfuscator")
+local IronBrikked = require("Obfuscator/IronBrikked/IronBrikked")
 
 --* Imports *--
 local unpack = (unpack or table.unpack)
@@ -36,12 +38,18 @@ local API = {
   InstructionGenerator = {},
   Assembler = {},
   ASTExecutor = {},
-  Beautifier = {},
   Minifier = {},
   ASTToTokensConverter = {},
-  Printer = {},
+  Printer = {
+    TokenPrinter = {},
+    ASTPrinter = {}
+  },
   Packer = {},
   LuaState = {},
+  Obfuscator = {
+    ASTObfuscator = {},
+    IronBrikked = {}
+  },
 
   -- Expose modules for easier access in the future
   Modules = {
@@ -53,24 +61,26 @@ local API = {
     InstructionGenerator = InstructionGenerator,
     ASTToTokensConverter = ASTToTokensConverter,
     VirtualMachine       = VirtualMachine,
-    Beautifier           = Beautifier,
     Minifier             = Minifier,
     Packer               = Packer,
     ASTExecutor          = ASTExecutor,
     Printer              = Printer,
-    SyntaxHighlighter    = SyntaxHighlighter
+    ASTPrinter           = ASTPrinter,
+    SyntaxHighlighter    = SyntaxHighlighter,
+    ASTObfuscator        = ASTObfuscator,
+    IronBrikked          = IronBrikked
   }
 }
 
 --* API.VirtualMachine *--
 
---- Executes a provided state in a virtual machine.
--- @param <LuaState> state The state of a Lua script.
+--- Executes a provided proto in a virtual machine.
+-- @param <LuaProto> proto The proto of a Lua script.
 -- @param <boolean> debug Whether to run in debug mode or not.
-function API.VirtualMachine.ExecuteState(state, debug)
-  assert(type(state) == "table", "Expected table for argument 'state', but got " .. type(state))
+function API.VirtualMachine.ExecuteProto(proto, debug)
+  assert(type(proto) == "table", "Expected table for argument 'proto', but got " .. type(proto))
 
-  local newVirtualMachine = VirtualMachine:new(state, debug)
+  local newVirtualMachine = VirtualMachine:new(proto, debug)
   newVirtualMachine:run()
 end
 
@@ -80,8 +90,8 @@ end
 function API.VirtualMachine.ExecuteScript(script, debug)
   assert(type(script) == "string", "Expected string for argument 'script', but got " .. type(script))
 
-  local luaState = API.Interpreter.ConvertToInstructions(script)
-  API.VirtualMachine.ExecuteState(luaState, debug)
+  local luaProto = API.Interpreter.ConvertToInstructions(script)
+  API.VirtualMachine.ExecuteProto(luaProto, debug)
 end
 
 --* API.Interpreter *--
@@ -108,38 +118,38 @@ function API.Interpreter.ConvertToAST(script)
   return AST
 end
 
---- Tokenizes, parses, and converts Lua script to instructions and returns its state.
+--- Tokenizes, parses, and converts Lua script to instructions and returns its proto.
 -- @param <string> script A Lua script.
--- @return <table> state The state of a Lua script.
+-- @return <table> proto The proto of a Lua script.
 function API.Interpreter.ConvertToInstructions(script)
   assert(type(script) == "string", "Expected string for argument 'script', but got " .. type(script))
 
   local AST = API.Interpreter.ConvertToAST(script)
-  local state = InstructionGenerator:new(AST):run()
-  return state
+  local proto = InstructionGenerator:new(AST):run()
+  return proto
 end
 
 --* API.InstructionGenerator *--
 
---- Converts AST to instructions and returns its state.
+--- Converts AST to instructions and returns its proto.
 -- @param <table> AST The Abstract Syntax Tree of a Lua script.
--- @return <table> state The state of a Lua script.
+-- @return <table> proto The proto of a Lua script.
 function API.InstructionGenerator.ConvertASTToInstructions(AST)
   assert(type(AST) == "table", "Expected table for argument 'AST', but got " .. type(AST))
 
-  local state = InstructionGenerator:new(AST):run()
-  return state
+  local proto = InstructionGenerator:new(AST):run()
+  return proto
 end
 
---- Converts Lua script to instructions and returns its state.
+--- Converts Lua script to instructions and returns its proto.
 -- @param <string> script A Lua script.
--- @return <table> state The state of a Lua script.
+-- @return <table> proto The proto of a Lua script.
 function API.InstructionGenerator.ConvertScriptToInstructions(script)
   assert(type(script) == "string", "Expected string for argument 'script', but got " .. type(script))
 
   local AST = API.Interpreter.ConvertToAST(script)
-  local state = API.InstructionGenerator.ConvertASTToInstructions(AST)
-  return state
+  local proto = API.InstructionGenerator.ConvertASTToInstructions(AST)
+  return proto
 end
 
 --* API.Assembler *--
@@ -154,15 +164,15 @@ function API.Assembler.Tokenize(code)
   return tokens
 end
 
---- Tokenizes and Parses code and returns its state.
+--- Tokenizes and Parses code and returns its proto.
 -- @param <string> code Assembly code.
--- @return <table> state The state of the code.
+-- @return <table> proto The proto of the code.
 function API.Assembler.Parse(code)
   assert(type(code) == "string", "Expected string for argument 'code', but got " .. type(code))
 
   local tokens = Assembler:tokenize(code)
-  local state = Assembler:parse(tokens)
-  return state
+  local proto = Assembler:parse(tokens)
+  return proto
 end
 
 --- Executes assembly code
@@ -171,8 +181,8 @@ end
 function API.Assembler.Execute(code)
   assert(type(code) == "string", "Expected string for argument 'code', but got " .. type(code))
 
-  local state = API.Assembler.Parse(code)
-  return API.VirtualMachine.ExecuteState(state)
+  local proto = API.Assembler.Parse(code)
+  return API.VirtualMachine.ExecuteProto(proto)
 end
 
 --* API.ASTExecutor *--
@@ -204,40 +214,52 @@ function API.ASTExecutor.ExecuteScript(script, state, debug, scriptName)
   return unpack(returnValues)
 end
 
---* API.Beautifier *--
+--* API.Minifier *--
 
---- Beautify a Lua script.
--- @param <string> script A Lua script.
--- @return <string> beautifiedScript The beautified version of the given Lua script.
-function API.Beautifier.Beautify(script)
-  assert(type(script) == "string", "Expected string for argument 'script', but got " .. type(script))
-
-  local AST = API.Interpreter.ConvertToAST(script)
-  local beautifiedScript = Beautifier:new(AST):beautify()
-  return beautifiedScript
-end
-
---- Beautify a Lua script from AST.
+--- Minify an Abstract Syntax Tree.
 -- @param <table> AST The Abstract Syntax Tree of a Lua script.
--- @return <string> beautifiedScript The beautified version of the given Lua script.
-function API.Beautifier.BeautifyAST(AST)
+-- @return <table> minifiedAST The minified Abstract Syntax Tree.
+function API.Minifier.MinifyAST(AST)
   assert(type(AST) == "table", "Expected table for argument 'AST', but got " .. type(AST))
 
-  local beautifiedScript = Beautifier:new(AST):beautify()
-  return beautifiedScript
+  local minifiedAST = Minifier:new(AST):run()
+  return minifiedAST
 end
-
---* API.Minifier *--
 
 --- Minify a Lua script.
 -- @param <string> script A Lua script.
--- @return <string> minifiedScript The minified version of the given Lua script.
-function API.Minifier.Minify(script)
+-- @return <table> minifiedAST The minified Abstract Syntax Tree.
+function API.Minifier.MinifyScript(script)
   assert(type(script) == "string", "Expected string for argument 'script', but got " .. type(script))
 
   local AST = API.Interpreter.ConvertToAST(script)
-  local minifiedScript = Minifier:new(AST):run()
-  return minifiedScript
+  local minifiedAST = API.Minifier.MinifyAST(AST)
+  return minifiedAST
+end
+
+--* API.Packer *--
+
+--- Pack all `require` calls in an Abstract Syntax Tree.
+-- @param <table> AST The Abstract Syntax Tree of a Lua script.
+-- @param <string?> localizedPath The localized path of require calls.
+-- @return <table> packedAST The packed Abstract Syntax Tree.
+function API.Packer.PackAST(AST, localizedPath)
+  assert(type(AST) == "table", "Expected table for argument 'AST', but got " .. type(AST))
+
+  local packedAST = Packer:new(AST, localizedPath):pack()
+  return packedAST
+end
+
+--- Pack all `require` calls in one Lua script.
+-- @param <string> script A Lua script.
+-- @param <string?> localizedPath The localized path of require calls.
+-- @return <table> packedAST The packed Abstract Syntax Tree.
+function API.Packer.PackScript(script, localizedPath)
+  assert(type(script) == "string", "Expected string for argument 'script', but got " .. type(script))
+
+  local AST = API.Interpreter.ConvertToAST(script)
+  local packedAST = API.Packer.PackAST(AST, localizedPath)
+  return packedAST
 end
 
 --* API.ASTToTokensConverter *--
@@ -254,14 +276,107 @@ end
 
 --* API.Printer *--
 
---- Convert the given tokens to code.
+--* API.Printer.TokenPrinter *--
+
+--- Print tokens of a Lua script.
 -- @param <table> tokens The tokens of a Lua script.
--- @return <string> code The code of the given tokens.
-function API.Printer.PrintTokens(tokens)
+-- @return <string> script The Lua script.
+function API.Printer.TokenPrinter.PrintTokens(tokens)
   assert(type(tokens) == "table", "Expected table for argument 'tokens', but got " .. type(tokens))
 
-  local code = Printer:new(tokens):run()
-  return code
+  local script = Printer:new(tokens):run()
+  return script
+end
+
+--- Convert a Lua script to tokens and print them.
+-- @param <string> script A Lua script.
+-- @return <string> script The Lua script.
+function API.Printer.TokenPrinter.PrintScriptTokens(script)
+  assert(type(script) == "string", "Expected string for argument 'script', but got " .. type(script))
+
+  local tokens = API.Interpreter.ConvertToTokens(script)
+  local script = API.Printer.TokenPrinter.PrintTokens(tokens)
+  return script
+end
+
+--* API.Printer.ASTPrinter *--
+
+--- Print an Abstract Syntax Tree.
+-- @param <table> AST The Abstract Syntax Tree of a Lua script.
+-- @return <string> script The Lua script.
+function API.Printer.ASTPrinter.PrintAST(AST)
+  assert(type(AST) == "table", "Expected table for argument 'AST', but got " .. type(AST))
+
+  local script = ASTPrinter:new(AST):print()
+  return script
+end
+
+--- Convert a Lua script to an Abstract Syntax Tree and print it.
+-- @param <string> script A Lua script.
+-- @return <string> script The Lua script.
+function API.Printer.ASTPrinter.PrintScriptAST(script)
+  assert(type(script) == "string", "Expected string for argument 'script', but got " .. type(script))
+
+  local AST = API.Interpreter.ConvertToAST(script)
+  local script = API.Printer.ASTPrinter.PrintAST(AST)
+  return script
+end
+
+--* API.Obfuscator *--
+
+--* API.Obfuscator.ASTObfuscator *--
+
+--- Obfuscate an Abstract Syntax Tree.
+-- @param <table> ast The Abstract Syntax Tree of a Lua script.
+-- @return <table> obfuscatedAST The obfuscated Abstract Syntax Tree.
+function API.Obfuscator.ASTObfuscator.ObfuscateAST(ast)
+  assert(type(ast) == "table", "Expected table for argument 'ast', but got " .. type(ast))
+
+  local obfuscatedAST = ASTObfuscator:new(ast):obfuscate()
+  -- Convert that ast to tokens -> code -> ast
+  -- because we need to update the ast with new metadata
+  -- and it's currently the only way to do that
+  local obfuscatedASTTokens = ASTToTokensConverter:new(obfuscatedAST):convert()
+  local obfuscatedCode = Printer:new(obfuscatedASTTokens):run()
+  local obfuscatedAST = API.Interpreter.ConvertToAST(obfuscatedCode)
+
+  return obfuscatedAST
+end
+
+--- Obfuscate a Lua script.
+-- @param <string> script A Lua script.
+-- @return <string> obfuscatedScript The obfuscated version of the given Lua script.
+function API.Obfuscator.ASTObfuscator.ObfuscateScript(script)
+  assert(type(script) == "string", "Expected string for argument 'script', but got " .. type(script))
+
+  local AST = API.Interpreter.ConvertToAST(script)
+  local obfuscatedAST = API.Obfuscator.ASTObfuscator.ObfuscateAST(AST)
+  local obfuscatedASTTokens = ASTToTokensConverter:new(obfuscatedAST):convert()
+  local obfuscatedScript = Printer:new(obfuscatedASTTokens):run()
+  return obfuscatedScript
+end
+
+--* API.Obfuscator.IronBrikked *--
+
+--- Obfuscate a Lua prototype.
+-- @param <table> proto A Lua prototype.
+-- @return <string> obfuscatedCode The obfuscated version of the given Lua prototype.
+function API.Obfuscator.IronBrikked.ObfuscateProto(proto)
+  assert(type(proto) == "table", "Expected table for argument 'proto', but got " .. type(proto))
+
+  local obfuscatedCode = IronBrikked:new(proto):obfuscate()
+  return obfuscatedCode
+end
+
+--- Obfuscate a Lua script.
+-- @param <string> script A Lua script.
+-- @return <string> obfuscatedScript The obfuscated version of the given Lua script.
+function API.Obfuscator.IronBrikked.ObfuscateScript(script)
+  assert(type(script) == "string", "Expected string for argument 'script', but got " .. type(script))
+
+  local proto = API.InstructionGenerator.ConvertScriptToInstructions(script)
+  local obfuscatedScript = API.Obfuscator.IronBrikked.ObfuscateProto(proto)
+  return obfuscatedScript
 end
 
 --* API.LuaState *--

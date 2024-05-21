@@ -1,7 +1,7 @@
 --[[
   Name: ASTPrinter.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2024-05-20
+  Date: 2024-05-21
 --]]
 
 --* Dependencies *--
@@ -36,7 +36,7 @@ function ASTPrinterMethods:processExpressionNode(node)
   end
 
   local nodeConverter = ExpressionNodesConverters[nodeType]
-  assert(nodeConverter, "No converter found for " .. nodeType)
+  assert(nodeConverter, "No converter found for " .. tostring(nodeType))
 
   return nodeConverter(self, node)
 end

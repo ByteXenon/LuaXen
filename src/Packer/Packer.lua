@@ -27,9 +27,10 @@ local readFile = Helpers.readFile
 
 local convertScriptToAST = LuaInterpreter.ConvertScriptToAST
 
-local createFunctionNode = NodeFactory.createFunctionNode
-local createFunctionCallNode = NodeFactory.createFunctionCallNode
-local createLocalVariableNode = NodeFactory.createLocalVariableNode
+local createStringNode                  = NodeFactory.createStringNode
+local createFunctionNode                = NodeFactory.createFunctionNode
+local createFunctionCallNode            = NodeFactory.createFunctionCallNode
+local createLocalVariableNode           = NodeFactory.createLocalVariableNode
 local createLocalVariableAssignmentNode = NodeFactory.createLocalVariableAssignmentNode
 
 --* Local functions *--
@@ -142,7 +143,9 @@ end
 
 function PackerMethods:createAssignNode(sanitizedModPath, modAST, modPath)
   local funcNode = createFunctionNode({}, true, modAST)
-  local funcCallNode = createFunctionCallNode(funcNode, {modPath})
+  local funcCallNode = createFunctionCallNode(funcNode, {
+    createStringNode(modPath)
+  })
   return createLocalVariableAssignmentNode({sanitizedModPath}, {funcCallNode})
 end
 

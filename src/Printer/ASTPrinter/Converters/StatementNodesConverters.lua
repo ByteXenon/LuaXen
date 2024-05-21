@@ -1,7 +1,7 @@
 --[[
   Name: StatementNodesConverters.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2024-05-10
+  Date: 2024-05-21
 --]]
 
 --* Dependencies *--
@@ -59,6 +59,11 @@ function StatementNodesConverters:FunctionCall(node)
 end
 
 function StatementNodesConverters:MethodCall(node)
+  local expressionType = node.Expression.TYPE
+  if expressionType ~= "Variable" and expressionType ~= "Index" and expressionType ~= "MethodIndex" then
+    return self.indentation .. "(" .. self:processExpressionNode(node.Expression) .. ")" .. "("
+            .. self:processExpressions(node.Arguments) .. ")"
+  end
   return self.indentation .. self:processExpressionNode(node.Expression) .. "("
             .. self:processExpressions(node.Arguments) .. ")"
 end
@@ -126,6 +131,7 @@ function StatementNodesConverters:FunctionDeclaration(node)
   if node.IsVararg then
     insert(newParameters, "...")
   end
+  local functionFields = self:processExpressionNode(node.Expression)
 
   return self.indentation .. "function " .. self:processExpressionNode(node.Expression) .. "." .. concat(node.Fields, ".")  .. "("
             .. self:processIdentifierList(newParameters) .. ")\n"
