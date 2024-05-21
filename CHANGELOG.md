@@ -1,6 +1,14 @@
 
 ## Changelog
 
+### Beta 1.11 - "Guess who's back, back again"
+
+- **Completely rewrote all modules from scratch**: We've rewritten all modules from scratch to make the project more readable and maintainable, now, all modules follow the same structure and code style, which makes it easier to understand the project.
+- **Buffed up the MathParser**: This problematic module has been (again) rewritten from scratch, it follows the same technique as the official Lua parser does, it shouldn't cause any issues now.
+- **OBFUSCATOR OBFUSCATOR OBFUSCATOR**: We've added a couple of new obfuscators to the project, the first one, ASTObfuscator - obfuscates your code by changing the AST nodes to make it harder to read, and the second one, IronBrikked - is a VM-based obfuscator that works almost like IronBrew, but better.
+- **Printers!!!!**: Instead of using any beautifiers/uglifiers, you can now use two modules: ASTPrinter - which prints your ASTs in a readable format, plus, adding indentation, and TokensPrinter - which prints Lua script's tokens in the most compact way possible.
+- **Packer!**: You have a big project that has a lot of files? - Use the freshly added Packer module to pack all your files into one, it will try to replace all `require` calls with the actual code, so you can run it everywhere.
+
 ### Beta 1.10 - "The calm before the storm"
 
 - **Added LuaTransformer and SyntaxHighlighter modules**: These new modules can transform Lua code to a different version and highlight Lua code, respectively.
