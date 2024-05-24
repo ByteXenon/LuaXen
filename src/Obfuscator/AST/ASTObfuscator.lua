@@ -1,19 +1,16 @@
 --[[
   Name: ASTObfuscator.lua
   Author: ByteXenon [Luna Gilbert]
-  Date: 2024-05-20
+  Date: 2024-05-24
 --]]
 
 --* Dependencies *--
 local Helpers = require("Helpers/Helpers")
-local ASTWalker = require("ASTWalker/ASTWalker")
+local LuaInterpreter = require("Interpreter/LuaInterpreter/LuaInterpreter")
 
 local NodeSpecs = require("Interpreter/LuaInterpreter/Parser/NodeSpecs")
-
 local ConstantsObfuscator = require("Obfuscator/AST/ConstantsObfuscator/ConstantsObfuscator")
 local StatementObfuscator = require("Obfuscator/AST/StatementObfuscator/StatementObfuscator")
-
-local LuaInterpreter = require("Interpreter/LuaInterpreter/LuaInterpreter")
 
 local NodeFactory = LuaInterpreter.modules.NodeFactory
 local LuaExpressionEvaluator = LuaInterpreter.modules.LuaExpressionEvaluator
@@ -24,6 +21,12 @@ local random = math.random
 
 local numbersObfuscators = ConstantsObfuscator.Numbers
 local stringsObfuscators = ConstantsObfuscator.Strings
+
+--* Constants *--
+local DEFAULT_CONFIG = {
+  obfuscateConstants  = true,
+  obfuscateStatements = true
+}
 
 --* Local functions *--
 local function deepCopyTable(table)
@@ -125,18 +128,19 @@ function ASTObfuscatorMethods:obfuscateConstants()
 end
 
 function ASTObfuscatorMethods:obfuscate()
-  self:obfuscateConstants(self.ast)
-  self:obfuscateCodeBlock(self.ast)
+  if self.config.obfuscateConstants  then self:obfuscateConstants(self.ast) end
+  if self.config.obfuscateStatements then self:obfuscateCodeBlock(self.ast) end
 
   return self.ast
 end
 
 --* ASTObfuscator *--
 local ASTObfuscator = {}
-function ASTObfuscator:new(ast)
+function ASTObfuscator:new(ast, config)
   local ASTObfuscatorInstance = {}
   ASTObfuscatorInstance.ast = ast
   ASTObfuscatorInstance.cachedStrings = {}
+  ASTObfuscatorInstance.config = config or DEFAULT_CONFIG
 
   local function inheritModule(moduleName, moduleTable)
     for index, value in pairs(moduleTable) do
