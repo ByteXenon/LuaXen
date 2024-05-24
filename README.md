@@ -64,28 +64,8 @@ We have big plans for the future of the Lua Compiler project:
 - VM-based Full-Code Obfuscator
 - Logic-based Full-Code Obfuscator
 
-## Installation & Usage
+## Example Usage
 
-To run the code, you will need to install Lua 5.1 or a higher version.
-
-Follow these steps to get started:
-
-1. Clone the repository:
-
-```bash
-git clone https://github.com/ByteXenon/LuaXen
-cd LuaXen
-```
-
-2. Install LuaXen for the supported Lua versions:
-
-```bash
-sudo make install
-```
-
-3. Start using LuaXen in your Lua scripts
-
-### Example Usage
 
 To imitate the behavior of the "loadstring" function using LuaXen, you can use the following code:
 
