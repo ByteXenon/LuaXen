@@ -1,7 +1,7 @@
 --[[
   Name: MockingStrings.lua
   Author: Collobarative effort by multiple anonymous idiots
-  Date: 2024-05-21
+  Date: 2024-05-25
   Description:
     This file stores strings that would
     be used to generate random strings in the obfuscated code.
@@ -65,6 +65,15 @@ local MockingStrings = {
 
   -- Anonymous idiot #7
   "<insert generic anti-deobfuscation string here>",
+
+  -- Anonymous idiot #8
+  "OOPS I FORGOR",
+  "umm... umm......",
+  "┌∩┐(◣_◢)┌∩┐",
+
+  -- Anonymous idiot #9
+  "Im not pretty good at being put into a spot like that",
+  "everything looks like a nail",
 
   "cringer, edgier, and more teenage than ever"
 }
